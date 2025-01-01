@@ -10,9 +10,11 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include "theeditor.h"
+
 typedef struct {
     int u_projection;
-    unsigned int vao, vbo;
+    unsigned int vao, position_vbo, color_vbo;
     unsigned int program;
     GLFWwindow *window;
 } RenderData;
@@ -85,19 +87,25 @@ int main(int nargs, const char *argv[])
     const char *vert_src =
         "#version 330 core\n"
         "layout (location = 0) in vec3 position; // the position variable has attribute position 0\n"
+        "layout (location = 1) in vec3 color;\n"
         "uniform mat4 projection;\n"
+        "\n"
+        "out vec3 vertex_Color;\n"
         "\n"
         "void main()\n"
         "{\n"
+        "    vertex_Color = color;\n"
         "    gl_Position = projection * vec4(position, 1.0);\n"
         "}\n";
     const char *frag_src =
         "#version 330 core\n"
         "out vec4 FragColor;\n"
         "\n"
+        "in vec3 vertex_Color;\n"
+        "\n"
         "void main()\n"
         "{\n"
-        "    FragColor = vec4(0.75, 0.25, 0.25, 1.0);\n"
+        "    FragColor = vec4(vertex_Color, 1.0);\n"
         "}\n";
     unsigned int vert_shader, frag_shader;
     rd.program = glCreateProgram();
@@ -120,22 +128,61 @@ int main(int nargs, const char *argv[])
         return EXIT_FAILURE;
     }
 
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    layout_init();
+
     glGenVertexArrays(1, &rd.vao);
     glBindVertexArray(rd.vao);
-    glGenBuffers(1, &rd.vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, rd.vbo);
+    glGenBuffers(1, &rd.position_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, rd.position_vbo);
     const float position[][3] = {
-        {100, 100, 0.},
-        {100, 200, 0.},
-        {200, 100, 0.},
-        {100, 200, 0.},
-        {200, 100, 0.},
-        {200, 200, 0.},
+        // side panel
+        {0, 0, 0},
+        {0, (float)height, 0},
+        {(float)layout.side_panel.width, 0, 0},
+        {0, (float)height, 0},
+        {(float)layout.side_panel.width, 0, 0},
+        {(float)layout.side_panel.width, (float)height, 0},
+
+        // bottom panel
+        {layout.side_panel.width, height - layout.bottom_panel.height, 0},
+        {layout.side_panel.width, height, 0},
+        {width, height - layout.bottom_panel.height, 0},
+        {layout.side_panel.width, height, 0},
+        {width, height - layout.bottom_panel.height, 0},
+        {width, height, 0},
+
+        // main panel
+        {layout.side_panel.width, 0, 0},
+        {layout.side_panel.width, height - layout.bottom_panel.height, 0},
+        {width, 0, 0},
+        {layout.side_panel.width, height - layout.bottom_panel.height, 0},
+        {width, 0, 0},
+        {width, height - layout.bottom_panel.height, 0},
     };
     glBufferData(GL_ARRAY_BUFFER, sizeof position, position, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    float side_color[3], bottom_color[3], main_color[3];
+    color_as_rgb(layout.side_panel.background, side_color);
+    color_as_rgb(layout.bottom_panel.background, bottom_color);
+    color_as_rgb(layout.main_panel.background, main_color);
+    float color[18][3];
+    for (int i = 0; i < 6; i++)
+        memcpy(color[i], side_color, sizeof color[i]);
+    for (int i = 6; i < 12; i++)
+        memcpy(color[i], bottom_color, sizeof color[i]);
+    for (int i = 12; i < 18; i++)
+        memcpy(color[i], main_color, sizeof color[i]);
+    glGenBuffers(1, &rd.color_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, rd.color_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof color, (float*)color, GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -188,6 +235,34 @@ static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int he
 {
     glViewport(0, 0, width, height);
 
+    glBindBuffer(GL_ARRAY_BUFFER, rd.position_vbo);
+    const float position[][3] = {
+        // side panel
+        {0, 0, 0},
+        {0, (float)height, 0},
+        {(float)layout.side_panel.width, 0, 0},
+        {0, (float)height, 0},
+        {(float)layout.side_panel.width, 0, 0},
+        {(float)layout.side_panel.width, (float)height, 0},
+
+        // bottom panel
+        {layout.side_panel.width, height - layout.bottom_panel.height, 0},
+        {layout.side_panel.width, height, 0},
+        {width, height - layout.bottom_panel.height, 0},
+        {layout.side_panel.width, height, 0},
+        {width, height - layout.bottom_panel.height, 0},
+        {width, height, 0},
+
+        // main panel
+        {layout.side_panel.width, 0, 0},
+        {layout.side_panel.width, height - layout.bottom_panel.height, 0},
+        {width, 0, 0},
+        {layout.side_panel.width, height - layout.bottom_panel.height, 0},
+        {width, 0, 0},
+        {width, height - layout.bottom_panel.height, 0},
+    };
+    glBufferData(GL_ARRAY_BUFFER, sizeof position, position, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 static void render()
@@ -217,7 +292,7 @@ static void render()
     glUseProgram(rd.program);
     glUniformMatrix4fv(rd.u_projection, 1, GL_TRUE, (float*)camera_matrix);
     glBindVertexArray(rd.vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDrawArrays(GL_TRIANGLES, 0, 18);
     glBindVertexArray(0);
     glUseProgram(0);
 }
