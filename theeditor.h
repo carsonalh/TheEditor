@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 typedef struct {
     int x, y;
@@ -11,13 +12,15 @@ typedef struct {
 
 typedef struct {
     size_t length;
-    char *data[];
+    char *data;
 } String;
+
+#define STRLIT(literal) ((String){.length = strlen(literal), .data = literal})
 
 typedef uint32_t Color;
 
-#define RGB(x) (Color)((((Color)x) << 8) | 0xff)
-#define RGBA(x) (Color)((((Color)x) << 8) | 0xff)
+#define COLOR_RGB(x) (Color)((((Color)x) << 8) | 0xff)
+#define COLOR_RGBA(x) (Color)((((Color)x) << 8) | 0xff)
 
 typedef struct {
     int width;

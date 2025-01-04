@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <windows.h>
 #include <stdbool.h>
-#include <processthreadsapi.h>
+// #include <processthreadsapi.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -37,6 +37,51 @@ gl_error_callback(GLenum source,
                  const void* userParam );
 
 static void render();
+
+static const char *vert_src = "\
+#version 330 core\n\
+layout (location = 0) in vec3 position; // the position variable has attribute position 0\n\
+layout (location = 1) in vec3 color;\n\
+layout (location = 2) in int useTexture;\n\
+layout (location = 3) in vec2 texCoords;\n\
+\n\
+uniform mat4 projection;\n\
+\n\
+out vec3 vertex_Color;\n\
+flat out int vertex_UseTexture;\n\
+out vec2 vertex_TexCoords;\n\
+\n\
+void main()\n\
+{\n\
+    vertex_Color = color;\n\
+    vertex_UseTexture = useTexture;\n\
+    vertex_TexCoords = texCoords;\n\
+    gl_Position = projection * vec4(position, 1.0);\n\
+}\n\
+";
+
+static const char *frag_src = "\
+#version 330 core\n\
+out vec4 FragColor;\n\
+\n\
+in vec3 vertex_Color;\n\
+flat in int vertex_UseTexture;\n\
+in vec2 vertex_TexCoords;\n\
+uniform sampler2D uFontAtlas;\n\
+\n\
+void main()\n\
+{\n\
+    vec3 color = vertex_Color;\n\
+\n\
+    if (vertex_UseTexture != 0)\n\
+    {\n\
+        float r = texture(uFontAtlas, vertex_TexCoords).x;\n\
+        color = vec3(r, r, r);\n\
+    }\n\
+\n\
+    FragColor = vec4(color, 1.0);\n\
+}\n\
+";
 
 int main(int nargs, const char *argv[])
 {
@@ -81,45 +126,6 @@ int main(int nargs, const char *argv[])
     double now, last_frame = 0.0, delta;
     const double SPF_LIMIT = 1. / 60.;
 
-    const char *vert_src =
-        "#version 330 core\n"
-        "layout (location = 0) in vec3 position; // the position variable has attribute position 0\n"
-        "layout (location = 1) in vec3 color;\n"
-        "layout (location = 2) in int useTexture;\n"
-        "layout (location = 3) in vec2 texCoords;"
-        "uniform mat4 projection;\n"
-        "\n"
-        "out vec3 vertex_Color;\n"
-        "flat out int vertex_UseTexture;\n"
-        "out vec2 vertex_TexCoords;\n"
-        "\n"
-        "void main()\n"
-        "{\n"
-        "    vertex_Color = color;\n"
-        "    vertex_UseTexture = useTexture;\n"
-        "    vertex_TexCoords = texCoords;\n"
-        "    gl_Position = projection * vec4(position, 1.0);\n"
-        "}\n";
-    const char *frag_src =
-        "#version 330 core\n"
-        "out vec4 FragColor;\n"
-        "\n"
-        "in vec3 vertex_Color;\n"
-        "flat in int vertex_UseTexture;\n"
-        "in vec2 vertex_TexCoords;\n"
-        "uniform sampler2D uFontAtlas;\n"
-        "\n"
-        "void main()\n"
-        "{\n"
-        "   vec3 color = vertex_Color;\n\
-            if (vertex_UseTexture != 0)\n\
-            {\n\
-                float r = texture(uFontAtlas, vertex_TexCoords).x;\n\
-                color = vec3(r, r, r);\n\
-            }\n\
-        "
-        "    FragColor = vec4(color, 1.0);\n"
-        "}\n";
     unsigned int vert_shader, frag_shader;
     rd.program = glCreateProgram();
     vert_shader = glCreateShader(GL_VERTEX_SHADER);
@@ -133,10 +139,6 @@ int main(int nargs, const char *argv[])
     glLinkProgram(rd.program);
     glDeleteShader(vert_shader);
     glDeleteShader(frag_shader);
-
-    // char buffer[1024];
-    // glGetShaderInfoLog(frag_shader, 1024, NULL, buffer);
-    // printf("%.1024s\n", buffer);
 
     rd.u_projection = glGetUniformLocation(rd.program, "projection");
     if (rd.u_projection < 0)
@@ -231,22 +233,39 @@ int main(int nargs, const char *argv[])
 
     int aw, ah;
     aw = ah = 1024;
-    uint8_t *atlas = calloc(sizeof (uint8_t), 1024 * 1024);
+    uint8_t *atlas = calloc(1024 * 1024, sizeof (uint8_t));
 
-    int codes[128];
-    for (int c = 0; c < 128; c++)
-        codes[c] = c;
+    String message = STRLIT("Hello, OpenGL font rendering!");
+    printf("the message is %s\nand is %d chars long.\n", message.data, message.length);
+    uint32_t *charcodes = calloc(message.length, sizeof (char));
+
+    int nchars = 0;
+    for (int i = 0; i < message.length; i++)
+    {
+        bool found = false;
+
+        for (int j = 0; j < message.length; j++)
+            if (charcodes[j] == message.data[i])
+            {
+                found = true;
+                break;
+            }
+
+        if (!found)
+            charcodes[nchars++] = message.data[i];
+    }
+
+    printf("%d characters put to the atlas; they are:\n", nchars);
+
+    for (int i = 0; i < nchars; i++)
+        printf("%c\n", charcodes[i]);
 
     FontId face = font_create_face("C:/Windows/Fonts/Consola.ttf");
-
-    if (font_atlas_fill(aw, ah, atlas, 128, codes, face, NULL))
-    {
-        printf("successfully filled the atlas\n");
-    }
+    Rect *positions = malloc(nchars * sizeof *positions);
+    if (font_atlas_fill(aw, ah, atlas, nchars, charcodes, face, positions))
+        printf("filled the atlas\n");
     else
-    {
         printf("failed to fill the atlas\n");
-    }
 
     glGenTextures(1, &rd.tex_id);
     glBindTexture(GL_TEXTURE_2D, rd.tex_id);
