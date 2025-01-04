@@ -13,16 +13,14 @@
 #include "theeditor.h"
 
 typedef struct {
-    int u_projection;
-    unsigned int vao, position_vbo, color_vbo;
+    int u_projection, u_sampler;
+    unsigned int vao, position_vbo, color_vbo, use_texture_vbo, tex_coords_vbo;
     unsigned int program;
+    unsigned int tex_id;
     GLFWwindow *window;
 } RenderData;
 
 RenderData rd = {0};
-
-static uint32_t main_thread;
-static uint32_t refresh_thread;
 
 static void glfw_error_callback(int error, const char *description);
 static void glfw_key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
@@ -54,24 +52,23 @@ int main(int nargs, const char *argv[])
         return EXIT_FAILURE;
     }
 
-    FT_Library ft;
-    if (FT_Init_FreeType(&ft))
+    if (!font_init())
     {
-        fprintf(stderr, "Failed to initialise freetype library.\n");
+        fprintf(stderr, "Failed to initalise the freetype library\n");
         return EXIT_FAILURE;
     }
 
-    FT_Face face;
-    if (FT_New_Face(ft, "C:/Windows/Fonts/Consola.ttf", 0, &face))
-    {
-        fprintf(stderr, "FreeType: Failed to load font consolas from C:/Windows/Fonts/Consola.ttf\n");
-        return EXIT_FAILURE;
-    }
+    // FT_Face face;
+    // if (FT_New_Face(ft, "C:/Windows/Fonts/Consola.ttf", 0, &face))
+    // {
+    //     fprintf(stderr, "FreeType: Failed to load font consolas from C:/Windows/Fonts/Consola.ttf\n");
+    //     return EXIT_FAILURE;
+    // }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);  
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
     window = glfwCreateWindow(2000, 1000, "GLFW Window", NULL, NULL);
     rd.window = window;
     glfwMakeContextCurrent(window);
@@ -88,13 +85,19 @@ int main(int nargs, const char *argv[])
         "#version 330 core\n"
         "layout (location = 0) in vec3 position; // the position variable has attribute position 0\n"
         "layout (location = 1) in vec3 color;\n"
+        "layout (location = 2) in int useTexture;\n"
+        "layout (location = 3) in vec2 texCoords;"
         "uniform mat4 projection;\n"
         "\n"
         "out vec3 vertex_Color;\n"
+        "flat out int vertex_UseTexture;\n"
+        "out vec2 vertex_TexCoords;\n"
         "\n"
         "void main()\n"
         "{\n"
         "    vertex_Color = color;\n"
+        "    vertex_UseTexture = useTexture;\n"
+        "    vertex_TexCoords = texCoords;\n"
         "    gl_Position = projection * vec4(position, 1.0);\n"
         "}\n";
     const char *frag_src =
@@ -102,10 +105,20 @@ int main(int nargs, const char *argv[])
         "out vec4 FragColor;\n"
         "\n"
         "in vec3 vertex_Color;\n"
+        "flat in int vertex_UseTexture;\n"
+        "in vec2 vertex_TexCoords;\n"
+        "uniform sampler2D uFontAtlas;\n"
         "\n"
         "void main()\n"
         "{\n"
-        "    FragColor = vec4(vertex_Color, 1.0);\n"
+        "   vec3 color = vertex_Color;\n\
+            if (vertex_UseTexture != 0)\n\
+            {\n\
+                float r = texture(uFontAtlas, vertex_TexCoords).x;\n\
+                color = vec3(r, r, r);\n\
+            }\n\
+        "
+        "    FragColor = vec4(color, 1.0);\n"
         "}\n";
     unsigned int vert_shader, frag_shader;
     rd.program = glCreateProgram();
@@ -120,6 +133,10 @@ int main(int nargs, const char *argv[])
     glLinkProgram(rd.program);
     glDeleteShader(vert_shader);
     glDeleteShader(frag_shader);
+
+    // char buffer[1024];
+    // glGetShaderInfoLog(frag_shader, 1024, NULL, buffer);
+    // printf("%.1024s\n", buffer);
 
     rd.u_projection = glGetUniformLocation(rd.program, "projection");
     if (rd.u_projection < 0)
@@ -161,6 +178,14 @@ int main(int nargs, const char *argv[])
         {layout.side_panel.width, height - layout.bottom_panel.height, 0},
         {width, 0, 0},
         {width, height - layout.bottom_panel.height, 0},
+
+        // texture atlas display
+        {300, 300, -0.5},
+        {300, 900, -0.5},
+        {900, 300, -0.5},
+        {300, 900, -0.5},
+        {900, 300, -0.5},
+        {900, 900, -0.5},
     };
     glBufferData(GL_ARRAY_BUFFER, sizeof position, position, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
@@ -168,7 +193,7 @@ int main(int nargs, const char *argv[])
     color_as_rgb(layout.side_panel.background, side_color);
     color_as_rgb(layout.bottom_panel.background, bottom_color);
     color_as_rgb(layout.main_panel.background, main_color);
-    float color[18][3];
+    float color[24][3] = {0};
     for (int i = 0; i < 6; i++)
         memcpy(color[i], side_color, sizeof color[i]);
     for (int i = 6; i < 12; i++)
@@ -179,10 +204,70 @@ int main(int nargs, const char *argv[])
     glBindBuffer(GL_ARRAY_BUFFER, rd.color_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof color, (float*)color, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    int use_texture[24] = {0};
+    memset(&use_texture[18], 0xff, 6 * sizeof use_texture[0]);
+    glGenBuffers(1, &rd.use_texture_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, rd.use_texture_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof use_texture, (void*)use_texture, GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 1, GL_INT, GL_FALSE, 0, NULL);
+    float tex_coords[24][2] = {
+        [18] = {0, 0},
+        [19] = {0, 1},
+        [20] = {1, 0},
+        [21] = {0, 1},
+        [22] = {1, 0},
+        [23] = {1, 1},
+    };
+    glGenBuffers(1, &rd.tex_coords_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, rd.tex_coords_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof tex_coords, tex_coords, GL_STATIC_DRAW);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glEnableVertexAttribArray(3);
     glBindVertexArray(0);
+
+    int aw, ah;
+    aw = ah = 1024;
+    uint8_t *atlas = calloc(sizeof (uint8_t), 1024 * 1024);
+
+    int codes[128];
+    for (int c = 0; c < 128; c++)
+        codes[c] = c;
+
+    FontId face = font_create_face("C:/Windows/Fonts/Consola.ttf");
+
+    if (font_atlas_fill(aw, ah, atlas, 128, codes, face, NULL))
+    {
+        printf("successfully filled the atlas\n");
+    }
+    else
+    {
+        printf("failed to fill the atlas\n");
+    }
+
+    glGenTextures(1, &rd.tex_id);
+    glBindTexture(GL_TEXTURE_2D, rd.tex_id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, aw, ah, 0, GL_RED, GL_UNSIGNED_BYTE, atlas);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    free(atlas);
+
+    rd.u_sampler = glGetUniformLocation(rd.program, "uFontAtlas");
+    if (rd.u_sampler < 0)
+    {
+        fprintf(stderr, "Failure to find uniform variable uFontAtlas\n");
+        return EXIT_FAILURE;
+    }
+    glUniform1i(rd.u_sampler, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, rd.tex_id);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -260,6 +345,14 @@ static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int he
         {layout.side_panel.width, height - layout.bottom_panel.height, 0},
         {width, 0, 0},
         {width, height - layout.bottom_panel.height, 0},
+
+        // texture atlas display
+        {300, 300, -0.5},
+        {300, 600, -0.5},
+        {600, 300, -0.5},
+        {300, 600, -0.5},
+        {600, 300, -0.5},
+        {600, 600, -0.5},
     };
     glBufferData(GL_ARRAY_BUFFER, sizeof position, position, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -267,7 +360,7 @@ static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int he
 
 static void render()
 {
-    glClearColor(0.5, 0.5, 0.5, 1.0);
+    glClearColor(1.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
     int width, height;
@@ -292,7 +385,7 @@ static void render()
     glUseProgram(rd.program);
     glUniformMatrix4fv(rd.u_projection, 1, GL_TRUE, (float*)camera_matrix);
     glBindVertexArray(rd.vao);
-    glDrawArrays(GL_TRIANGLES, 0, 18);
+    glDrawArrays(GL_TRIANGLES, 0, 24);
     glBindVertexArray(0);
     glUseProgram(0);
 }
