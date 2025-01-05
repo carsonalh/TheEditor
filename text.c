@@ -43,7 +43,7 @@ void font_delete_face(FontId id)
 bool font_atlas_fill(size_t width, size_t height, uint8_t *atlas,
                      size_t ncodes, const uint32_t *char_codes,
                      FontId face_id,
-                     Rect *out_positions)
+                     GlyphInfo *out_glyphinfos)
 {
     uint32_t c;
     size_t x = 0, y = 0, max_y = 0;
@@ -74,14 +74,16 @@ bool font_atlas_fill(size_t width, size_t height, uint8_t *atlas,
         if (y + face->glyph->bitmap.rows > height)
             return false;
 
-        // printf("inserting a character of size %d x %d\n", face->glyph->bitmap.width, face->glyph->bitmap.rows);
-
-        if (out_positions)
-            out_positions[i] = (Rect){
-                .x = x,
-                .y = y,
-                .width = face->glyph->bitmap.width,
-                .height = face->glyph->bitmap.rows,
+        if (out_glyphinfos)
+            out_glyphinfos[i] = (GlyphInfo){
+                .position = {
+                    .x = x,
+                    .y = y,
+                    .width = face->glyph->bitmap.width,
+                    .height = face->glyph->bitmap.rows,
+                },
+                .advance = face->glyph->advance.x,
+                .bearing = { face->glyph->bitmap_left, face->glyph->bitmap_top },
             };
 
         uint8_t *b = face->glyph->bitmap.buffer;
