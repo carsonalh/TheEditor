@@ -90,7 +90,7 @@ int main(int nargs, const char *argv[])
     aw = ah = 1024;
     uint8_t *atlas = calloc(1024 * 1024, sizeof (uint8_t));
 
-    sd.message = STRLIT("Hello, OpenGL font rendering!");
+    sd.message = STRLIT("Hello, OpenGL font rendering! 123");
     uint32_t *charcodes = calloc(sd.message.length, sizeof (char));
     sd.msg_indices = calloc(sd.message.length, sizeof *sd.msg_indices);
 
@@ -115,7 +115,7 @@ int main(int nargs, const char *argv[])
         }
     }
 
-    FontId face = font_create_face("C:/Windows/Fonts/Consola.ttf");
+    FontId face = font_create_face("C:/Windows/Fonts/Times.ttf");
     GlyphInfo *glyphs = malloc(nchars * sizeof *glyphs);
     Rect *positions = malloc(nchars * sizeof *positions);
 
@@ -199,7 +199,8 @@ static void render()
         pos.x = -sd.msg_info[sd.msg_indices[i]].bearing.x + origin.x;
         pos.y = -sd.msg_info[sd.msg_indices[i]].bearing.y + origin.y;
         render_push_textured_quad(sd.atlas_id, sd.msg_indices[i], pos);
-        origin.x += sd.msg_info[sd.msg_indices[i]].advance;
+        origin.x += sd.msg_info[sd.msg_indices[i]].advance_x;
+        origin.y += sd.msg_info[sd.msg_indices[i]].advance_y;
     }
     // render_push_textured_quad(sd.atlas_id, sd.subtexture_id, (Vec2){100, 300});
     render_draw();

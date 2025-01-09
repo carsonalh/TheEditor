@@ -245,7 +245,7 @@ void render_push_colored_quad(Rect pos, Color color)
 /** Draws the elements to the screen and and resets the per-frame queue. */
 void render_draw(void)
 {
-    glClearColor(1.0, 0.0, 0.0, 1.0);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glBindBuffer(GL_ARRAY_BUFFER, rd.position_vbo);

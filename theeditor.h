@@ -58,7 +58,8 @@ typedef struct {
     size_t index;
     Rect position;
     Vec2 bearing;
-    float advance;
+    float advance_x;
+    float advance_y;
 } GlyphInfo;
 
 typedef int FontId;
