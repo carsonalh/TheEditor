@@ -82,7 +82,7 @@ bool font_atlas_fill(size_t width, size_t height, uint8_t *atlas,
                     .width = face->glyph->bitmap.width,
                     .height = face->glyph->bitmap.rows,
                 },
-                .advance = face->glyph->advance.x,
+                .advance = (float)face->glyph->advance.x / 64.0f,
                 .bearing = { face->glyph->bitmap_left, face->glyph->bitmap_top },
             };
 

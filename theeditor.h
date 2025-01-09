@@ -5,15 +5,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef union {
-    struct { float x, y; };
-    float parts[2];
-} Vec2;
-
-typedef union {
-    struct { float x, y, z; };
-    float parts[3];
-} Vec3;
+typedef struct { float x, y; } Vec2;
+typedef struct { float x, y, z; } Vec3;
 
 typedef struct {
     int x, y;
@@ -62,6 +55,7 @@ void color_as_rgba(Color c, float out[4]);
 void layout_init(void);
 
 typedef struct {
+    size_t index;
     Rect position;
     Vec2 bearing;
     float advance;

@@ -14,6 +14,9 @@
 
 typedef struct {
     int atlas_id, subtexture_id;
+    String message;
+    GlyphInfo *msg_info;
+    int *msg_indices;
 } SceneData;
 
 static SceneData sd = {0};
@@ -87,39 +90,47 @@ int main(int nargs, const char *argv[])
     aw = ah = 1024;
     uint8_t *atlas = calloc(1024 * 1024, sizeof (uint8_t));
 
-    String message = STRLIT("Hello, OpenGL font rendering!");
-    uint32_t *charcodes = calloc(message.length, sizeof (char));
+    sd.message = STRLIT("Hello, OpenGL font rendering!");
+    uint32_t *charcodes = calloc(sd.message.length, sizeof (char));
+    sd.msg_indices = calloc(sd.message.length, sizeof *sd.msg_indices);
 
     int nchars = 0;
-    for (int i = 0; i < message.length; i++)
+    for (int i = 0; i < sd.message.length; i++)
     {
         bool found = false;
 
-        for (int j = 0; j < message.length; j++)
-            if (charcodes[j] == message.data[i])
+        for (int j = 0; j < nchars; j++)
+            if (charcodes[j] == sd.message.data[i])
             {
+                sd.msg_indices[i] = j;
                 found = true;
                 break;
             }
 
         if (!found)
-            charcodes[nchars++] = message.data[i];
+        {
+            charcodes[nchars] = (uint32_t)sd.message.data[i];
+            sd.msg_indices[i] = nchars;
+            nchars++;
+        }
     }
 
     FontId face = font_create_face("C:/Windows/Fonts/Consola.ttf");
     GlyphInfo *glyphs = malloc(nchars * sizeof *glyphs);
     Rect *positions = malloc(nchars * sizeof *positions);
 
-    if (font_atlas_fill(aw, ah, atlas, nchars, charcodes, face, glyphs))
-        printf("filled the atlas\n");
-    else
-        printf("failed to fill the atlas\n");
+    if (!font_atlas_fill(aw, ah, atlas, nchars, charcodes, face, glyphs))
+    {
+        fprintf(stderr, "Failed to fill the font atlas.\n");
+        return EXIT_FAILURE;
+    }
 
     for (int i = 0; i < nchars; i++)
         memcpy(&positions[i], &glyphs[i].position, sizeof positions[i]);
 
     sd.atlas_id = render_init_texture_atlas(aw, ah, atlas, nchars, positions);
     sd.subtexture_id = 0;
+    sd.msg_info = glyphs;
 
     free(positions);
     free(atlas);
@@ -180,7 +191,17 @@ static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int he
 static void render()
 {
     render_push_colored_quad((Rect){100, 100, 600, 100}, COLOR_RGB(0x24221f));
-    render_push_textured_quad(sd.atlas_id, sd.subtexture_id, (Vec2){100, 300});
+    Vec2 origin = {100, 300};
+
+    for (int i = 0; i < sd.message.length; i++)
+    {
+        Vec2 pos;
+        pos.x = -sd.msg_info[sd.msg_indices[i]].bearing.x + origin.x;
+        pos.y = -sd.msg_info[sd.msg_indices[i]].bearing.y + origin.y;
+        render_push_textured_quad(sd.atlas_id, sd.msg_indices[i], pos);
+        origin.x += sd.msg_info[sd.msg_indices[i]].advance;
+    }
+    // render_push_textured_quad(sd.atlas_id, sd.subtexture_id, (Vec2){100, 300});
     render_draw();
 }
 
