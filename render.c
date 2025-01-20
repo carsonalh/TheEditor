@@ -37,14 +37,15 @@ uniform sampler2D uFontAtlas;\n\
 void main()\n\
 {\n\
     vec3 color = vertex_Color;\n\
+    float a = 1.0f;\n\
 \n\
     if (vertex_UseTexture != 0)\n\
     {\n\
-        float r = texture(uFontAtlas, vertex_TexCoords).x;\n\
-        color = vec3(r, r, r);\n\
+        a = texture(uFontAtlas, vertex_TexCoords).x;\n\
+        color = vec3(a, a, a);\n\
     }\n\
 \n\
-    FragColor = vec4(color, 1.0);\n\
+    FragColor = vec4(color, a);\n\
 }\n\
 ";
 
@@ -137,6 +138,9 @@ void render_init(void)
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
 }
 
 void render_viewport(Rect pos)

@@ -87,4 +87,32 @@ void render_draw(void);
 /** Cleans up the renderer when done. */
 void render_uninit(void);
 
+void ui_begin(void);
+void ui_end(void);
+void ui_mouse_position(float x, float y);
+void ui_mouse_button(bool down);
+
+#define FILENAME_LEN 264
+
+typedef enum {
+    // Common flags
+    FT_FILE      = 1 << 0,
+    FT_DIRECTORY = 1 << 1,
+    // To be set only if FT_DIRECTORY is set
+    FT_OPEN      = 1 << 2,
+    FT_EXPLORED  = 1 << 3,
+} FileTreeItemFlags;
+
+typedef struct {
+    size_t len_name;
+    const char *name;
+    int depth;
+    FileTreeItemFlags flags;
+} FileTreeItem;
+
+void ft_init(size_t *len_listing, FileTreeItem **listing);
+void ft_uninit(size_t len_listing, FileTreeItem *listing);
+void ft_expand(size_t *len_listing, FileTreeItem **listing, int index);
+void ft_collapse(size_t len_listing, FileTreeItem* listing, int index);
+
 #endif // THE_EDITOR_H

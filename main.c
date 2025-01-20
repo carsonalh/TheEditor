@@ -17,12 +17,17 @@ typedef struct {
     String message;
     GlyphInfo *msg_info;
     int *msg_indices;
+    int width, height;
+    SidePanel side_panel;
+    BottomPanel bottom_panel;
 } SceneData;
 
 static SceneData sd = {0};
 
 static void glfw_error_callback(int error, const char *description);
 static void glfw_key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
+static void glfw_cursor_pos_callback(GLFWwindow *window, double pos_x, double pos_y);
+static void glfw_mouse_button_callback(GLFWwindow *window, int button, int action, int mods);
 static void glfw_window_refresh_callback(GLFWwindow *window);
 static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int height);
 static void glad_post_callback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...);
@@ -73,6 +78,8 @@ int main(int nargs, const char *argv[])
     gladLoadGL(glfwGetProcAddress);
     gladSetGLPostCallback(glad_post_callback);
     glfwSetKeyCallback(window, glfw_key_callback);
+    glfwSetCursorPosCallback(window, glfw_cursor_pos_callback);
+    glfwSetMouseButtonCallback(window, glfw_mouse_button_callback);
     glfwSetWindowRefreshCallback(window, glfw_window_refresh_callback);
     glfwSetFramebufferSizeCallback(window, glfw_framebuffer_size_callback);
 
@@ -85,6 +92,20 @@ int main(int nargs, const char *argv[])
     render_viewport((Rect){0, 0, width, height});
 
     layout_init();
+
+    size_t len_listing;
+    FileTreeItem *listing;
+    ft_init(&len_listing, &listing);
+    ft_expand(&len_listing, &listing, 0);
+    printf("Expanded a total of %zu items in the directory:\n", len_listing);
+    for (int i = 0; i < len_listing; i++)
+    {
+        for (int j = 0; j < listing[i].depth; j++)
+            printf("    ");
+
+		printf("%.*s\n", listing[i].len_name, listing[i].name);
+    }
+    ft_uninit(len_listing, listing);
 
     int aw, ah;
     aw = ah = 1024;
@@ -131,6 +152,8 @@ int main(int nargs, const char *argv[])
     sd.atlas_id = render_init_texture_atlas(aw, ah, atlas, nchars, positions);
     sd.subtexture_id = 0;
     sd.msg_info = glyphs;
+    sd.bottom_panel.height = sd.side_panel.width = 600;
+    sd.bottom_panel.hidden = sd.side_panel.hidden = true;
 
     free(positions);
     free(atlas);
@@ -144,7 +167,8 @@ int main(int nargs, const char *argv[])
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
         glViewport(0, 0, width, height);
-
+        sd.width = width;
+        sd.height = height;
 
         delta = now - last_frame;
 
@@ -169,7 +193,37 @@ static void glfw_error_callback(int error, const char *description)
 
 static void glfw_key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
-    printf("A key was pressed!\n");
+    if (action != GLFW_PRESS)
+        return;
+
+    switch (key)
+    {
+    case GLFW_KEY_S:
+        sd.side_panel.hidden = !sd.side_panel.hidden;
+        break;
+    case GLFW_KEY_B:
+        sd.bottom_panel.hidden = !sd.bottom_panel.hidden;
+        break;
+    }
+}
+
+static void glfw_cursor_pos_callback(GLFWwindow *window, double pos_x, double pos_y)
+{
+    ui_mouse_position((float)pos_x, (float)pos_y);
+}
+
+static void glfw_mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
+{
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
+        switch (action)
+        {
+        case GLFW_PRESS:
+            ui_mouse_button(true);
+            break;
+        case GLFW_RELEASE:
+            ui_mouse_button(false);
+            break;
+        }
 }
 
 static void glfw_window_refresh_callback(GLFWwindow *window)
@@ -179,30 +233,47 @@ static void glfw_window_refresh_callback(GLFWwindow *window)
     // glViewport(0, 0, width, height);
 
     render();
-
     glfwSwapBuffers(window);
 }
 
 static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int height)
 {
     render_viewport((Rect){0, 0, width, height});
+    sd.width = width;
+    sd.height = height;
 }
 
 static void render()
 {
-    render_push_colored_quad((Rect){100, 100, 600, 100}, COLOR_RGB(0x24221f));
+    if (!sd.side_panel.hidden)
+    {
+        render_push_colored_quad((Rect){0, 0, sd.side_panel.width, sd.height}, COLOR_RGB(0x24221f));
+    }
+
+    if (!sd.bottom_panel.hidden)
+    {
+        render_push_colored_quad((Rect){
+            sd.side_panel.hidden ? 0 : sd.side_panel.width,
+            sd.height - sd.bottom_panel.height,
+            sd.width - (sd.side_panel.hidden ? 0 : sd.side_panel.width),
+            sd.bottom_panel.height,
+        }, COLOR_RGB(0x101010));
+    }
+
     Vec2 origin = {100, 300};
 
     for (int i = 0; i < sd.message.length; i++)
     {
         Vec2 pos;
-        pos.x = -sd.msg_info[sd.msg_indices[i]].bearing.x + origin.x;
-        pos.y = -sd.msg_info[sd.msg_indices[i]].bearing.y + origin.y;
+        pos.x = origin.x + sd.msg_info[sd.msg_indices[i]].bearing.x;
+        pos.y = origin.y + sd.msg_info[sd.msg_indices[i]].bearing.y;
         render_push_textured_quad(sd.atlas_id, sd.msg_indices[i], pos);
         origin.x += sd.msg_info[sd.msg_indices[i]].advance_x;
         origin.y += sd.msg_info[sd.msg_indices[i]].advance_y;
     }
-    // render_push_textured_quad(sd.atlas_id, sd.subtexture_id, (Vec2){100, 300});
+
+    render_push_colored_quad((Rect){100, 300, 900, 100}, COLOR_RGB(0xff0000));
+
     render_draw();
 }
 
