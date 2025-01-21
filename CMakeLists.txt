@@ -15,7 +15,7 @@ add_executable(TheEditor
     src/render.c
     src/ui.c
     src/filetree.c
-    src/theeditor.h)
+    src/theeditor.h "src/linmath.h")
 set_target_properties(TheEditor PROPERTIES COMPILE_FLAGS -g -Wall -Werror)
 target_link_libraries(TheEditor PRIVATE glfw user32 freetype glad)
 target_include_directories(TheEditor PRIVATE vendor/glfw/include)

@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <windows.h>
 #include <stdbool.h>
+#include <assert.h>
 // #include <processthreadsapi.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -20,6 +21,9 @@ typedef struct {
     int width, height;
     SidePanel side_panel;
     BottomPanel bottom_panel;
+    size_t ft_listing_len;
+    FileTreeItem *ft_listing;
+    StringArena ft_arena;
 } SceneData;
 
 static SceneData sd = {0};
@@ -93,19 +97,7 @@ int main(int nargs, const char *argv[])
 
     layout_init();
 
-    size_t len_listing;
-    FileTreeItem *listing;
-    ft_init(&len_listing, &listing);
-    ft_expand(&len_listing, &listing, 0);
-    printf("Expanded a total of %zu items in the directory:\n", len_listing);
-    for (int i = 0; i < len_listing; i++)
-    {
-        for (int j = 0; j < listing[i].depth; j++)
-            printf("    ");
-
-		printf("%.*s\n", listing[i].len_name, listing[i].name);
-    }
-    ft_uninit(len_listing, listing);
+    ft_init(&sd.ft_listing_len, &sd.ft_listing, &sd.ft_arena);
 
     int aw, ah;
     aw = ah = 1024;
@@ -228,10 +220,6 @@ static void glfw_mouse_button_callback(GLFWwindow *window, int button, int actio
 
 static void glfw_window_refresh_callback(GLFWwindow *window)
 {
-    // int width, height;
-    // glfwGetFramebufferSize(window, &width, &height);
-    // glViewport(0, 0, width, height);
-
     render();
     glfwSwapBuffers(window);
 }
@@ -245,36 +233,62 @@ static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int he
 
 static void render()
 {
-    if (!sd.side_panel.hidden)
+    int id = 0;
+
+    typedef enum {
+        OP_NONE = 0,
+        OP_EXPAND_FILE_TREE = 1,
+        OP_COLLAPSE_FILE_TREE,
+    } PostUiOperation;
+
+    PostUiOperation op = OP_NONE;
+    int op_arg;
+
+    ui_begin();
+		ui_filetree_begin();
+			for (int i = 0; i < sd.ft_listing_len; i++)
+			{
+				if (ui_filetree_item(&sd.ft_listing[i], ++id))
+				{
+                    if (sd.ft_listing[i].flags & FTI_FILE)
+                        continue;
+
+                    assert(!op && "only one item should ever be activated per render loop");
+
+                    if (sd.ft_listing[i].flags & FTI_OPEN)
+                    {
+                        op = OP_COLLAPSE_FILE_TREE;
+					}
+                    else
+                    {
+                        op = OP_EXPAND_FILE_TREE;
+                    }
+
+                    op_arg = i;
+				}
+
+                if (!(sd.ft_listing[i].flags & FTI_OPEN))
+                {
+                    int parent_depth = sd.ft_listing[i].depth;
+
+                    while (
+                        i + 1 < sd.ft_listing_len
+                        && sd.ft_listing[i + 1].depth > parent_depth)
+                        i++;
+                }
+			}
+		ui_filetree_end();
+    ui_end();
+
+    switch (op)
     {
-        render_push_colored_quad((Rect){0, 0, sd.side_panel.width, sd.height}, COLOR_RGB(0x24221f));
+    case OP_EXPAND_FILE_TREE:
+        ft_expand(&sd.ft_listing_len, &sd.ft_listing, &sd.ft_arena, op_arg);
+        break;
+    case OP_COLLAPSE_FILE_TREE:
+        ft_collapse(sd.ft_listing_len, sd.ft_listing, op_arg);
+        break;
     }
-
-    if (!sd.bottom_panel.hidden)
-    {
-        render_push_colored_quad((Rect){
-            sd.side_panel.hidden ? 0 : sd.side_panel.width,
-            sd.height - sd.bottom_panel.height,
-            sd.width - (sd.side_panel.hidden ? 0 : sd.side_panel.width),
-            sd.bottom_panel.height,
-        }, COLOR_RGB(0x101010));
-    }
-
-    Vec2 origin = {100, 300};
-
-    for (int i = 0; i < sd.message.length; i++)
-    {
-        Vec2 pos;
-        pos.x = origin.x + sd.msg_info[sd.msg_indices[i]].bearing.x;
-        pos.y = origin.y + sd.msg_info[sd.msg_indices[i]].bearing.y;
-        render_push_textured_quad(sd.atlas_id, sd.msg_indices[i], pos);
-        origin.x += sd.msg_info[sd.msg_indices[i]].advance_x;
-        origin.y += sd.msg_info[sd.msg_indices[i]].advance_y;
-    }
-
-    render_push_colored_quad((Rect){100, 300, 900, 100}, COLOR_RGB(0xff0000));
-
-    render_draw();
 }
 
 static void glad_post_callback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...)

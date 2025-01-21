@@ -8,7 +8,7 @@
 #include <string.h>
 #include <assert.h>
 
-void ft_init(size_t *len_listing, FileTreeItem **listing)
+void ft_init(size_t *len_listing, FileTreeItem **listing, StringArena *strarena)
 {
     WIN32_FIND_DATA ffd;
     HANDLE hfind = NULL;
@@ -29,6 +29,11 @@ void ft_init(size_t *len_listing, FileTreeItem **listing)
     }
 
     *listing = calloc(*len_listing, sizeof **listing);
+    *strarena = (StringArena){
+        .cap = FILENAME_LEN * *len_listing,
+        .len = 0,
+        .buffer = malloc(*len_listing * FILENAME_LEN * sizeof *strarena->buffer),
+    };
 
     hfind = FindFirstFile(search, &ffd);
     if (hfind != INVALID_HANDLE_VALUE)
@@ -41,17 +46,23 @@ void ft_init(size_t *len_listing, FileTreeItem **listing)
                 continue;
 
             FileTreeItemFlags type;
-            const char *name;
 
             if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 type = FTI_DIRECTORY;
             else
                 type = FTI_FILE;
 
+            size_t len_name = strnlen(ffd.cFileName, sizeof ffd.cFileName);
+            strncpy(&strarena->buffer[strarena->len], ffd.cFileName, sizeof ffd.cFileName);
+            const char *name = &strarena->buffer[strarena->len];
+            strarena->len += len_name;
+
+            assert(strarena->len <= strarena->cap && "Enough memory should have been allocated to the arena already");
+
             (*listing)[i++] = (FileTreeItem){
                 .depth = 1,
-                .len_name = strnlen(ffd.cFileName, sizeof ffd.cFileName),
-                .name = strdup(ffd.cFileName),
+                .len_name = len_name,
+                .name = name,
                 .flags = type,
             };
         }
@@ -59,17 +70,13 @@ void ft_init(size_t *len_listing, FileTreeItem **listing)
     }
 }
 
-void ft_uninit(size_t len_listing, FileTreeItem *listing)
+void ft_uninit(size_t len_listing, FileTreeItem *listing, StringArena *strarena)
 {
-    for (int i = 0; i < len_listing; i++)
-    {
-        free((char*)listing[i].name);
-    }
-
+    free(strarena->buffer);
     free(listing);
 }
 
-void ft_expand(size_t *len_listing, FileTreeItem **listing, int index)
+void ft_expand(size_t *len_listing, FileTreeItem **listing, StringArena *strarena, int index)
 {
     assert(0 <= index && index < *len_listing);
     assert((*listing)[index].flags & FTI_DIRECTORY);
@@ -145,12 +152,15 @@ void ft_expand(size_t *len_listing, FileTreeItem **listing, int index)
         while (FindNextFile(hfind, &ffd));
     }
 
+    size_t len_initial = *len_listing;
     *len_listing += len_sub_listing;
     *listing = realloc(*listing, *len_listing * sizeof **listing);
     assert(*listing != NULL);
-    memmove(&(*listing)[index + 1 + len_sub_listing], &(*listing)[index + 1], len_sub_listing * sizeof **listing);
+    memmove(&(*listing)[index + 1 + len_sub_listing], &(*listing)[index + 1], (len_initial - (index + 1)) * sizeof **listing);
 
     hfind = FindFirstFile(path, &ffd);
+
+    int next_idx = index + 1;
 
 	do
 	{
@@ -164,16 +174,28 @@ void ft_expand(size_t *len_listing, FileTreeItem **listing, int index)
         else
             type = FTI_FILE;
 
-        (*listing)[++index] = (FileTreeItem){
+        size_t len_name = strnlen(ffd.cFileName, sizeof ffd.cFileName);
+
+        if (len_name + strarena->len > strarena->cap)
+        {
+            strarena->cap += len_sub_listing;
+            strarena->buffer = realloc(strarena->buffer, strarena->cap * sizeof *strarena->buffer);
+        }
+
+        strncpy(&strarena->buffer[strarena->len], ffd.cFileName, sizeof ffd.cFileName);
+        const char *name = &strarena->buffer[strarena->len];
+        strarena->len += len_name;
+
+        (*listing)[next_idx++] = (FileTreeItem){
             .depth = num_dirs_in_path + 1,
-            .len_name = strnlen(ffd.cFileName, sizeof ffd.cFileName),
-            .name = strdup(ffd.cFileName),
+            .len_name = len_name,
+            .name = name,
             .flags = type
         };
 	}
 	while (FindNextFile(hfind, &ffd));
 
-    (*listing)[index].flags |= FTI_EXPLORED;
+    (*listing)[index].flags |= FTI_EXPLORED | FTI_OPEN;
 }
 
 void ft_collapse(size_t len_listing, FileTreeItem* listing, int index)

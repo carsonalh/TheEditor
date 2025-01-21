@@ -9,18 +9,23 @@ layout (location = 0) in vec3 position; // the position variable has attribute p
 layout (location = 1) in vec3 color;\n\
 layout (location = 2) in int useTexture;\n\
 layout (location = 3) in vec2 texCoords;\n\
+layout (location = 4) in vec4 clipMask;\n\
 \n\
 uniform mat4 projection;\n\
 \n\
 out vec3 vertex_Color;\n\
 flat out int vertex_UseTexture;\n\
 out vec2 vertex_TexCoords;\n\
+out vec4 vertex_ClipMask;\n\
+out vec3 vertex_Position;\n\
 \n\
 void main()\n\
 {\n\
     vertex_Color = color;\n\
+	vertex_ClipMask = clipMask;\n\
     vertex_UseTexture = useTexture;\n\
     vertex_TexCoords = texCoords;\n\
+	vertex_Position = position;\n\
     gl_Position = projection * vec4(position, 1.0);\n\
 }\n\
 ";
@@ -33,6 +38,8 @@ in vec3 vertex_Color;\n\
 flat in int vertex_UseTexture;\n\
 in vec2 vertex_TexCoords;\n\
 uniform sampler2D uFontAtlas;\n\
+in vec4 vertex_ClipMask;\n\
+in vec3 vertex_Position;\n\
 \n\
 void main()\n\
 {\n\
@@ -43,6 +50,21 @@ void main()\n\
     {\n\
         a = texture(uFontAtlas, vertex_TexCoords).x;\n\
         color = vec3(a, a, a);\n\
+    }\n\
+\n\
+    {\n\
+		float x, y, width, height;\n\
+\n\
+		x = vertex_ClipMask.x;\n\
+		y = vertex_ClipMask.y;\n\
+		width = vertex_ClipMask.z;\n\
+		height = vertex_ClipMask.w;\n\
+\n\
+        if (!(x < vertex_Position.x && vertex_Position.x < x + width &&\n\
+            y < vertex_Position.y && vertex_Position.y < y + height))\n\
+        {\n\
+            a = 0.0f;\n\
+        }\n\
     }\n\
 \n\
     FragColor = vec4(color, a);\n\
@@ -61,7 +83,7 @@ typedef struct {
 
 typedef struct {
     int u_projection, u_sampler;
-    unsigned int vao, position_vbo, color_vbo, use_texture_vbo, tex_coords_vbo;
+    unsigned int vao, position_vbo, color_vbo, use_texture_vbo, tex_coords_vbo, clip_mask_vbo;
     unsigned int program;
 
     size_t window_width;
@@ -75,6 +97,7 @@ typedef struct {
     float buf_color[6 * MAX_RENDERABLE_QUADS][3];
     float buf_tex_coords[6 * MAX_RENDERABLE_QUADS][2];
     int buf_use_texture[6 * MAX_RENDERABLE_QUADS];
+    float buf_clip_masks[6 * MAX_RENDERABLE_QUADS][4];
 } RenderData;
 
 static RenderData rd = {0};
@@ -136,6 +159,12 @@ void render_init(void)
     glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
     glEnableVertexAttribArray(3);
 
+    glGenBuffers(1, &rd.clip_mask_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, rd.clip_mask_vbo);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * 4 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 0, NULL);
+    glEnableVertexAttribArray(4);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -192,7 +221,7 @@ int render_init_texture_atlas(size_t width, size_t height, const uint8_t *buffer
 }
 
 /** Renders at the location with the top left as the origin by default.  Removed after draw. */
-void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos)
+void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const Rect *clip_mask)
 {
     float x0, y0, x1, y1;
     float width, height;
@@ -224,10 +253,30 @@ void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos)
     memcpy(&rd.buf_tex_coords[rd.n_quads * 6 + 4][0], (float[2]){x1, y0}, sizeof (float[2]));
     memcpy(&rd.buf_tex_coords[rd.n_quads * 6 + 5][0], (float[2]){x1, y1}, sizeof (float[2]));
 
+    float clip_x, clip_y, clip_width, clip_height;
+
+    if (clip_mask)
+    {
+        clip_x = clip_mask->x;
+        clip_y = clip_mask->y;
+        clip_width = clip_mask->width;
+        clip_height = clip_mask->height;
+    }
+    else
+    {
+        clip_x = clip_y = 0;
+        clip_width = rd.window_width;
+        clip_height = rd.window_height;
+    }
+
+    float cm_data[4] = {clip_x, clip_y, clip_width, clip_height};
+    for (int i = 0; i < 6; i++)
+		memcpy(&rd.buf_clip_masks[rd.n_quads * 6 + i], cm_data, sizeof cm_data);
+
     rd.n_quads++;
 }
 
-void render_push_colored_quad(Rect pos, Color color)
+void render_push_colored_quad(Rect pos, Color color, const Rect *clip_mask)
 {
     memcpy(&rd.buf_position[rd.n_quads * 6 + 0][0], (float[3]){pos.x, pos.y}, sizeof (float[3]));
     memcpy(&rd.buf_position[rd.n_quads * 6 + 1][0], (float[3]){pos.x, pos.y + pos.height}, sizeof (float[3]));
@@ -242,6 +291,26 @@ void render_push_colored_quad(Rect pos, Color color)
         color_as_rgb(color, rgb);
         memcpy(&rd.buf_color[rd.n_quads * 6 + i], rgb, sizeof rd.buf_color[0]);
     }
+
+    float clip_x, clip_y, clip_width, clip_height;
+
+    if (clip_mask)
+    {
+        clip_x = clip_mask->x;
+        clip_y = clip_mask->y;
+        clip_width = clip_mask->width;
+        clip_height = clip_mask->height;
+    }
+    else
+    {
+        clip_x = clip_y = 0;
+        clip_width = rd.window_width;
+        clip_height = rd.window_height;
+    }
+
+    float cm_data[4] = {clip_x, clip_y, clip_width, clip_height};
+    for (int i = 0; i < 6; i++)
+		memcpy(&rd.buf_clip_masks[rd.n_quads * 6 + i], cm_data, sizeof cm_data);
 
     rd.n_quads++;
 }
@@ -260,6 +329,8 @@ void render_draw(void)
     glBufferSubData(GL_ARRAY_BUFFER, 0, rd.n_quads * 6 * sizeof rd.buf_use_texture[0], rd.buf_use_texture);
     glBindBuffer(GL_ARRAY_BUFFER, rd.tex_coords_vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, rd.n_quads * 6 * sizeof rd.buf_tex_coords[0], rd.buf_tex_coords);
+    glBindBuffer(GL_ARRAY_BUFFER, rd.clip_mask_vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd.n_quads * 6 * sizeof rd.buf_clip_masks[0], rd.buf_clip_masks);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     // for (int i = 0; i < 6 * rd.n_quads; i++)

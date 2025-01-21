@@ -53,7 +53,7 @@ bool font_atlas_fill(size_t width, size_t height, uint8_t *atlas,
     face = faces[face_id];
 
     // TODO parameterise
-    FT_Set_Pixel_Sizes(face, 0, 100);
+    FT_Set_Pixel_Sizes(face, 0, 32);
 
     for (i = 0; i < ncodes; i++)
     {
