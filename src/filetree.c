@@ -44,9 +44,9 @@ void ft_init(size_t *len_listing, FileTreeItem **listing)
             const char *name;
 
             if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                type = FT_DIRECTORY;
+                type = FTI_DIRECTORY;
             else
-                type = FT_FILE;
+                type = FTI_FILE;
 
             (*listing)[i++] = (FileTreeItem){
                 .depth = 1,
@@ -72,13 +72,13 @@ void ft_uninit(size_t len_listing, FileTreeItem *listing)
 void ft_expand(size_t *len_listing, FileTreeItem **listing, int index)
 {
     assert(0 <= index && index < *len_listing);
-    assert((*listing)[index].flags & FT_DIRECTORY);
+    assert((*listing)[index].flags & FTI_DIRECTORY);
 
     FileTreeItem *node = &(*listing)[index];
 
-    if (node->flags & FT_EXPLORED)
+    if (node->flags & FTI_EXPLORED)
     {
-        node->flags |= FT_OPEN;
+        node->flags |= FTI_OPEN;
         return;
     }
 
@@ -160,9 +160,9 @@ void ft_expand(size_t *len_listing, FileTreeItem **listing, int index)
 
         FileTreeItemFlags type;
         if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            type = FT_DIRECTORY;
+            type = FTI_DIRECTORY;
         else
-            type = FT_FILE;
+            type = FTI_FILE;
 
         (*listing)[++index] = (FileTreeItem){
             .depth = num_dirs_in_path + 1,
@@ -173,13 +173,13 @@ void ft_expand(size_t *len_listing, FileTreeItem **listing, int index)
 	}
 	while (FindNextFile(hfind, &ffd));
 
-    (*listing)[index].flags |= FT_EXPLORED;
+    (*listing)[index].flags |= FTI_EXPLORED;
 }
 
 void ft_collapse(size_t len_listing, FileTreeItem* listing, int index)
 {
     assert(0 <= index && index < len_listing);
-    assert(listing[index].flags & FT_DIRECTORY);
+    assert(listing[index].flags & FTI_DIRECTORY);
 
-    listing[index].flags &= ~FT_OPEN;
+    listing[index].flags &= ~FTI_OPEN;
 }

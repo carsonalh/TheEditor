@@ -96,11 +96,11 @@ void ui_mouse_button(bool down);
 
 typedef enum {
     // Common flags
-    FT_FILE      = 1 << 0,
-    FT_DIRECTORY = 1 << 1,
-    // To be set only if FT_DIRECTORY is set
-    FT_OPEN      = 1 << 2,
-    FT_EXPLORED  = 1 << 3,
+    FTI_FILE      = 1 << 0,
+    FTI_DIRECTORY = 1 << 1,
+    // To be set only if FTI_DIRECTORY is set
+    FTI_OPEN      = 1 << 2,
+    FTI_EXPLORED  = 1 << 3,
 } FileTreeItemFlags;
 
 typedef struct {
