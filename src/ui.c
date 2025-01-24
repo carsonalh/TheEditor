@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 
-static int id;
 static int hot;
 static int active = 0;
 static float mouse_pos_x = 0;
@@ -54,8 +53,8 @@ static inline FRect frect_intersection(size_t nrects, const FRect *rects)
 
     r.x = greatest_left;
     r.y = greatest_top;
-    r.width = fmaxf((int)(least_right - greatest_left), 0);
-    r.height = fmaxf((int)(least_bottom - greatest_top), 0);
+    r.width = fmaxf(least_right - greatest_left, 0);
+    r.height = fmaxf(least_bottom - greatest_top, 0);
 
     return r;
 }
@@ -70,7 +69,7 @@ void ui_begin(void)
         mask_stack = malloc(MAX_UI_NEST_DEPTH * sizeof *mask_stack);
     }
 
-    hot = id = 0;
+    hot = 0;
 
     memset(mask_stack, 0, MAX_UI_NEST_DEPTH * sizeof *mask_stack);
     mask_stack[0] = (FRect){
@@ -158,13 +157,13 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
     x = 0;
     y = filetree_item_y_offset;
     width = 500;
-    height = 24;
+    height = 48;
 
-    filetree_item_y_offset += 24;
+    filetree_item_y_offset += 48;
 
     Vec2 offset = {
-        48 * (item->depth - 1),
-        filetree_item_y_offset += 24,
+        (float)(48 * (item->depth - 1)),
+        (float)(filetree_item_y_offset - 10),
     };
 
     if (x <= mouse_pos_x && mouse_pos_x <= x + width &&
@@ -180,12 +179,12 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
     }
 
 	assert(1 <= mask_stack_height && mask_stack_height <= MAX_UI_NEST_DEPTH);
-    const FRect computed_mask = frect_intersection(mask_stack_height, mask_stack);
+    // const FRect computed_mask = frect_intersection(mask_stack_height, mask_stack);
 
     if (active == id)
     {
         render_push_colored_quad(
-            (Rect) { x, y, width, height },
+            (FRect) { x, y, width, height },
             COLOR_RGB(0x808080),
 			NULL
 		);
@@ -193,7 +192,7 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
     else if (hot == id)
     {
         render_push_colored_quad(
-            (Rect) { x, y, width, height },
+            (FRect) { x, y, width, height },
             COLOR_RGB(0x404040),
             NULL
 		);
@@ -250,7 +249,7 @@ bool ui_button(float x, float y, int id)
         c = color_hot;
     }
 
-    render_push_colored_quad((Rect){x, y, width, height}, c, NULL);
+    render_push_colored_quad((FRect){x, y, width, height}, c, NULL);
 
     return was_pressed;
 }

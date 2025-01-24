@@ -77,8 +77,8 @@ bool font_atlas_fill(size_t width, size_t height, uint8_t *atlas,
         if (out_glyphinfos)
             out_glyphinfos[i] = (GlyphInfo){
                 .position = {
-                    .x = x,
-                    .y = y,
+                    .x = (int)x,
+                    .y = (int)y,
                     .width = face->glyph->bitmap.width,
                     .height = face->glyph->bitmap.rows,
                 },
@@ -88,7 +88,7 @@ bool font_atlas_fill(size_t width, size_t height, uint8_t *atlas,
             };
 
         uint8_t *b = face->glyph->bitmap.buffer;
-        for (int row = 0; row < face->glyph->bitmap.rows; row++)
+        for (int row = 0; row < (int)face->glyph->bitmap.rows; row++)
         {
             memcpy(&atlas[width * (y + row) + x],
                    &b[face->glyph->bitmap.width * row],

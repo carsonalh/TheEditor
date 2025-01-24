@@ -102,7 +102,7 @@ void ft_expand(size_t *len_listing, FileTreeItem **listing, StringArena *straren
         struct DirectoryName *dirs = malloc(num_dirs_in_path * sizeof *dirs);
 
         size_t len_path = strlen("\\*") + 1;
-        for (int i = num_dirs_in_path - 1; i >= 0; i--)
+        for (int i = (int)num_dirs_in_path - 1; i >= 0; i--)
         {
             dirs[i].len_name = node->len_name;
             dirs[i].name = node->name;
@@ -187,7 +187,7 @@ void ft_expand(size_t *len_listing, FileTreeItem **listing, StringArena *straren
         strarena->len += len_name;
 
         (*listing)[next_idx++] = (FileTreeItem){
-            .depth = num_dirs_in_path + 1,
+            .depth = (int)num_dirs_in_path + 1,
             .len_name = len_name,
             .name = name,
             .flags = type

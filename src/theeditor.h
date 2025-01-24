@@ -89,9 +89,9 @@ int render_init_texture_atlas(size_t width, size_t height, const uint8_t *buffer
                               size_t nsubtextures, const Rect *subtexture_boxes);
 // TODO let a user replace a texture atlas data with a new one
 /** Renders at the location with the top left as the origin by default.  Removed after draw. */
-void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const Rect *clip_mask);
+void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const FRect *clip_mask);
 /** Removed after draw. */
-void render_push_colored_quad(Rect pos, Color color, const Rect *clip_mask);
+void render_push_colored_quad(FRect pos, Color color, const FRect *clip_mask);
 /** Draws the elements to the screen and and resets the per-frame queue. */
 void render_draw(void);
 /** Cleans up the renderer when done. */

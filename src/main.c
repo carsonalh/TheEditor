@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <windows.h>
 #include <stdbool.h>
 #include <assert.h>
 // #include <processthreadsapi.h>
@@ -93,9 +92,8 @@ int main(int nargs, const char *argv[])
 
         now = glfwGetTime();
 
-        int width, height;
         glfwGetFramebufferSize(window, &width, &height);
-        glViewport(0, 0, width, height);
+        render_viewport((Rect){0, 0, width, height});
         sd.width = width;
         sd.height = height;
 
@@ -179,7 +177,7 @@ static void render()
     } PostUiOperation;
 
     PostUiOperation op = OP_NONE;
-    int op_arg;
+    int op_arg = -1;
 
     ui_begin();
 		ui_filetree_begin();

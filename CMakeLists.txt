@@ -40,9 +40,13 @@ add_custom_command(
     VERBATIM
 )
 
+target_compile_definitions(
+    TheEditor PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+)
 target_compile_options(TheEditor PRIVATE
-    $<$<CONFIG:Debug>:/Zi /W4 /fsanitize=address /external:anglebrackets /external:W0>
-    $<$<CONFIG:Release>:/W4>
+    $<$<CONFIG:Debug>:/Zi /W4 /fsanitize=address /external:anglebrackets /external:W0 /wd4100>
+    $<$<CONFIG:Release>:/W4 /wd4100>
 )
 target_link_libraries(TheEditor PRIVATE glfw user32 freetype glad)
 target_include_directories(TheEditor PRIVATE vendor/glfw/include)

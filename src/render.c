@@ -219,7 +219,7 @@ int render_init_texture_atlas(size_t width, size_t height, const uint8_t *buffer
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, buffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, (GLsizei)width, (GLsizei)height, 0, GL_RED, GL_UNSIGNED_BYTE, buffer);
 
     rd->tex_ids[rd->n_tex_atlases] = ta->tex_id;
     glUniform1iv(rd->u_sampler, MAX_TEXTURE_UNITS, (int*)rd->tex_ids);
@@ -237,11 +237,11 @@ int render_init_texture_atlas(size_t width, size_t height, const uint8_t *buffer
     ta->width = width;
     ta->height = height;
 
-    return rd->n_tex_atlases++;
+    return (int)rd->n_tex_atlases++;
 }
 
 /** Renders at the location with the top left as the origin by default.  Removed after draw. */
-void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const Rect *clip_mask)
+void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const FRect *clip_mask)
 {
     assert(rd->n_quads < MAX_RENDERABLE_QUADS && "cannot render more quads the buffer size");
 
@@ -287,8 +287,8 @@ void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const Rect *
     else
     {
         clip_x = clip_y = 0;
-        clip_width = rd->window_width;
-        clip_height = rd->window_height;
+        clip_width = (float)rd->window_width;
+        clip_height = (float)rd->window_height;
     }
 
     float cm_data[4] = {clip_x, clip_y, clip_width, clip_height};
@@ -298,7 +298,7 @@ void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const Rect *
     rd->n_quads++;
 }
 
-void render_push_colored_quad(Rect pos, Color color, const Rect *clip_mask)
+void render_push_colored_quad(FRect pos, Color color, const FRect *clip_mask)
 {
     assert(rd->n_quads < MAX_RENDERABLE_QUADS && "cannot render more quads the buffer size");
 
@@ -328,8 +328,8 @@ void render_push_colored_quad(Rect pos, Color color, const Rect *clip_mask)
     else
     {
         clip_x = clip_y = 0;
-        clip_width = rd->window_width;
-        clip_height = rd->window_height;
+        clip_width = (float)rd->window_width;
+        clip_height = (float)rd->window_height;
     }
 
     float cm_data[4] = {clip_x, clip_y, clip_width, clip_height};
@@ -369,9 +369,9 @@ void render_draw(void)
     float left, right, top, bottom, nearplane, farplane;
 
     left = 0;
-    right = rd->window_width;
+    right = (float)rd->window_width;
     top = 0;
-    bottom = rd->window_height;
+    bottom = (float)rd->window_height;
     nearplane = -1;
     farplane = 1;
 
@@ -385,7 +385,7 @@ void render_draw(void)
     glUseProgram(rd->program);
     glUniformMatrix4fv(rd->u_projection, 1, GL_TRUE, (float*)camera_matrix);
     glBindVertexArray(rd->vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6 * rd->n_quads);
+    glDrawArrays(GL_TRIANGLES, 0, 6 * (GLsizei)rd->n_quads);
     glBindVertexArray(0);
     glUseProgram(0);
 
