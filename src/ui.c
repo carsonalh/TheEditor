@@ -30,25 +30,30 @@ static float window_height;
 
 #define MAX_UI_NEST_DEPTH 8
 
-static size_t mask_stack_height = 0;
-static FRect *mask_stack = NULL;
+static size_t container_stack_height = 0;
+static FRect *container_stack = NULL;
 
-static inline FRect frect_intersection(size_t nrects, const FRect *rects)
+static inline FRect frect_mask_compute(size_t nrects, const FRect *stack)
 {
+    Vec2 offset = {0};
     float greatest_left = -INFINITY, least_right = INFINITY;
     float greatest_top = -INFINITY, least_bottom = INFINITY;
-    FRect r;
+    FRect r, t;
 
-    while (nrects--)
+    for (int i = 0; i < nrects; i++)
     {
-        r = *rects;
+        r = stack[i];
 
-        if (r.x > greatest_left) greatest_left = r.x;
-        if (r.y > greatest_top) greatest_top = r.y;
-        if (r.x + r.width < least_right) least_right = r.x + r.width;
-        if (r.y + r.height < least_bottom) least_bottom = r.y + r.height;
+        t = r;
+        t.x += offset.x;
+        t.y += offset.y;
 
-        rects++;
+        if (t.x > greatest_left) greatest_left = t.x;
+        if (t.y > greatest_top) greatest_top = t.y;
+        if (t.x + t.width < least_right) least_right = t.x + t.width;
+        if (t.y + t.height < least_bottom) least_bottom = t.y + t.height;
+
+        offset = v2_add(offset, (Vec2) {r.x, r.y});
     }
 
     r.x = greatest_left;
@@ -59,24 +64,35 @@ static inline FRect frect_intersection(size_t nrects, const FRect *rects)
     return r;
 }
 
-// static size_t displacement_stack_height = 0;
-// static Vec2 displacement_stack[MAX_UI_NEST_DEPTH];
+/* Applies the container stack to convert these coordinates to global ones. */
+static FRect frect_transformed(FRect rect)
+{
+    Vec2 x = {rect.x, rect.y};
+
+    for (int i = 0; i < container_stack_height; i++)
+        x = v2_add(x, (Vec2){container_stack[i].x, container_stack[i].y});
+
+    rect.x = x.x;
+    rect.y = x.y;
+
+    return rect;
+}
 
 void ui_begin(void)
 {
-    if (!mask_stack)
+    if (!container_stack)
     {
-        mask_stack = malloc(MAX_UI_NEST_DEPTH * sizeof *mask_stack);
+        container_stack = malloc(MAX_UI_NEST_DEPTH * sizeof *container_stack);
     }
 
     hot = 0;
 
-    memset(mask_stack, 0, MAX_UI_NEST_DEPTH * sizeof *mask_stack);
-    mask_stack[0] = (FRect){
+    memset(container_stack, 0, MAX_UI_NEST_DEPTH * sizeof *container_stack);
+    container_stack[0] = (FRect){
         .x = 0, .y = 0,
         .width = window_width, .height = window_height,
     };
-    mask_stack_height = 1;
+    container_stack_height = 1;
 }
 
 void ui_end(void)
@@ -134,19 +150,22 @@ void ui_filetree_begin(void)
 		ft_init(&filetree_listing_len, &filetree_listing, &filetree_arena);
     }
 
-    assert(mask_stack_height < MAX_UI_NEST_DEPTH);
-    mask_stack[mask_stack_height] = (FRect){
+    assert(container_stack_height < MAX_UI_NEST_DEPTH);
+    container_stack[container_stack_height] = (FRect){
         0, 0,
         500, window_height,
     };
-    mask_stack_height++;
+    container_stack_height++;
+
+    const FRect mask = frect_mask_compute(container_stack_height, container_stack);
+    render_push_colored_quad((FRect){0, 0, window_width, window_height}, COLOR_RGB(0xA03030), -1, &mask);
 
     filetree_item_y_offset = 0;
 }
 
 void ui_filetree_end(void)
 {
-    mask_stack_height--;
+    container_stack_height--;
 }
 
 bool ui_filetree_item(const FileTreeItem *item, int id)
@@ -178,8 +197,9 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
         }
     }
 
-	assert(1 <= mask_stack_height && mask_stack_height <= MAX_UI_NEST_DEPTH);
-    // const FRect computed_mask = frect_intersection(mask_stack_height, mask_stack);
+	assert(1 <= container_stack_height && container_stack_height <= MAX_UI_NEST_DEPTH);
+
+    const FRect mask = frect_mask_compute(container_stack_height, container_stack);
 
     if (active == id)
     {
@@ -187,7 +207,7 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
             (FRect) { x, y, width, height },
             COLOR_RGB(0x808080),
             0,
-			NULL
+			&mask
 		);
     }
     else if (hot == id)
@@ -196,7 +216,7 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
             (FRect) { x, y, width, height },
             COLOR_RGB(0x404040),
             0,
-            NULL
+            &mask
 		);
     }
 

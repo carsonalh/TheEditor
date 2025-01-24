@@ -179,6 +179,8 @@ static void render()
     PostUiOperation op = OP_NONE;
     int op_arg = -1;
 
+    ui_viewport((float)sd.width, (float)sd.height);
+
     ui_begin();
 		ui_filetree_begin();
 			for (int i = 0; i < sd.ft_listing_len; i++)
