@@ -186,6 +186,7 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
         render_push_colored_quad(
             (FRect) { x, y, width, height },
             COLOR_RGB(0x808080),
+            0,
 			NULL
 		);
     }
@@ -194,6 +195,7 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
         render_push_colored_quad(
             (FRect) { x, y, width, height },
             COLOR_RGB(0x404040),
+            0,
             NULL
 		);
     }
@@ -206,50 +208,13 @@ bool ui_filetree_item(const FileTreeItem *item, int id)
             filetree_atlas,
             (int)(item->name[i] - ' '),
             with_bearing,
+            1,
 			NULL
 		);
 
         offset.x += filetree_glyph_info[item->name[i] - ' '].advance_x;
         offset.y += filetree_glyph_info[item->name[i] - ' '].advance_y;
     }
-
-    return was_pressed;
-}
-
-bool ui_button(float x, float y, int id)
-{
-    bool was_pressed = false;
-    float width = 200;
-    float height = 100;
-
-    if (x <= mouse_pos_x && mouse_pos_x <= x + width &&
-        y <= mouse_pos_y && mouse_pos_y <= y + height)
-    {
-        hot = id;
-
-        if (!active && mouse_button_down)
-        {
-            active = id;
-            was_pressed = true;
-        }
-    }
-
-    Color color_inactive = COLOR_RGB(0xff0000);
-    Color color_hot = COLOR_RGB(0x00ff00);
-    Color color_active = COLOR_RGB(0x0000ff);
-
-    Color c = color_inactive;
-
-    if (active == id)
-    {
-        c = color_active;
-    }
-    else if (hot == id)
-    {
-        c = color_hot;
-    }
-
-    render_push_colored_quad((FRect){x, y, width, height}, c, NULL);
 
     return was_pressed;
 }

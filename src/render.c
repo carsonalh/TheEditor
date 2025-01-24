@@ -18,6 +18,7 @@ layout (location = 2) in int useTexture;\n\
 layout (location = 3) in vec2 texCoords;\n\
 layout (location = 4) in vec4 clipMask;\n\
 layout (location = 4) in int textureId;\n\
+layout (location = 5) in int z;\n\
 \n\
 uniform mat4 projection;\n\
 \n\
@@ -35,7 +36,7 @@ void main()\n\
     vertex_UseTexture = useTexture;\n\
     vertex_TextureId = textureId;\n\
     vertex_TexCoords = texCoords;\n\
-	vertex_Position = position;\n\
+	vertex_Position = vec3(position.xy, float(z) / 128.01f);\n\
     gl_Position = projection * vec4(position, 1.0);\n\
 }\n\
 ";
@@ -92,7 +93,7 @@ typedef struct {
 
 typedef struct {
     int u_projection, u_sampler;
-    unsigned int vao, position_vbo, color_vbo, use_texture_vbo, tex_coords_vbo, tex_index_vbo, clip_mask_vbo;
+    unsigned int vao, position_vbo, color_vbo, use_texture_vbo, tex_coords_vbo, tex_index_vbo, clip_mask_vbo, z_vbo;
     unsigned int program;
 
     size_t window_width;
@@ -108,6 +109,7 @@ typedef struct {
     float buf_tex_coords[6 * MAX_RENDERABLE_QUADS][2];
     int buf_use_texture[6 * MAX_RENDERABLE_QUADS];
     float buf_clip_masks[6 * MAX_RENDERABLE_QUADS][4];
+    int8_t buf_z[6 * MAX_RENDERABLE_QUADS];
 } RenderData;
 
 static RenderData *rd = NULL;
@@ -133,7 +135,7 @@ void render_init(void)
     glDeleteShader(frag_shader);
 
     char buffer[1024] = {0};
-    glGetShaderInfoLog(frag_shader, 1024, NULL, buffer);
+    glGetShaderInfoLog(vert_shader, 1024, NULL, buffer);
     printf("%s\n", buffer);
 
     rd->u_projection = glGetUniformLocation(rd->program, "projection");
@@ -189,6 +191,12 @@ void render_init(void)
     glVertexAttribPointer(5, 1, GL_INT, GL_FALSE, 0, NULL);
     glEnableVertexAttribArray(5);
 
+    glGenBuffers(1, &rd->z_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, rd->z_vbo);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * 1 * sizeof (int8_t), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(6, 1, GL_BYTE, GL_FALSE, 0, NULL);
+    glEnableVertexAttribArray(6);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -241,7 +249,7 @@ int render_init_texture_atlas(size_t width, size_t height, const uint8_t *buffer
 }
 
 /** Renders at the location with the top left as the origin by default.  Removed after draw. */
-void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const FRect *clip_mask)
+void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, uint8_t z, const FRect *clip_mask)
 {
     assert(rd->n_quads < MAX_RENDERABLE_QUADS && "cannot render more quads the buffer size");
 
@@ -295,10 +303,13 @@ void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, const FRect 
     for (int i = 0; i < 6; i++)
 		memcpy(&rd->buf_clip_masks[rd->n_quads * 6 + i], cm_data, sizeof cm_data);
 
+    for (int i = 0; i < 6; i++)
+        rd->buf_z[rd->n_quads * 6 + i] = z;
+
     rd->n_quads++;
 }
 
-void render_push_colored_quad(FRect pos, Color color, const FRect *clip_mask)
+void render_push_colored_quad(FRect pos, Color color, int8_t z, const FRect *clip_mask)
 {
     assert(rd->n_quads < MAX_RENDERABLE_QUADS && "cannot render more quads the buffer size");
 
@@ -336,6 +347,9 @@ void render_push_colored_quad(FRect pos, Color color, const FRect *clip_mask)
     for (int i = 0; i < 6; i++)
 		memcpy(&rd->buf_clip_masks[rd->n_quads * 6 + i], cm_data, sizeof cm_data);
 
+    for (int i = 0; i < 6; i++)
+        rd->buf_z[rd->n_quads * 6 + i] = z;
+
     rd->n_quads++;
 }
 
@@ -355,16 +369,9 @@ void render_draw(void)
     glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_tex_coords[0], rd->buf_tex_coords);
     glBindBuffer(GL_ARRAY_BUFFER, rd->clip_mask_vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_clip_masks[0], rd->buf_clip_masks);
+    glBindBuffer(GL_ARRAY_BUFFER, rd->z_vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_z[0], rd->buf_z);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // for (int i = 0; i < 6 * rd->n_quads; i++)
-    // {
-    //     printf("uv %d: {%f, %f}\n",  i,
-    //     rd->buf_tex_coords[i][0],
-    //     rd->buf_tex_coords[i][1]
-    //     );
-    // }
-    // printf("drawing %d quads\n", rd->n_quads);
 
     float left, right, top, bottom, nearplane, farplane;
 
