@@ -15,9 +15,6 @@
 
 typedef struct {
     int atlas_id, subtexture_id;
-    String message;
-    GlyphInfo *msg_info;
-    int *msg_indices;
     int width, height;
     SidePanel side_panel;
     BottomPanel bottom_panel;
@@ -35,21 +32,12 @@ static void glfw_mouse_button_callback(GLFWwindow *window, int button, int actio
 static void glfw_window_refresh_callback(GLFWwindow *window);
 static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int height);
 static void glad_post_callback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...);
-static void GLAPIENTRY
-gl_error_callback(GLenum source,
-                 GLenum type,
-                 GLuint id,
-                 GLenum severity,
-                 GLsizei length,
-                 const GLchar* message,
-                 const void* userParam );
 
 static void render();
 
 int main(int nargs, const char *argv[])
 {
     GLFWwindow *window;
-    int error;
 
     glfwSetErrorCallback(glfw_error_callback);
 
@@ -98,57 +86,6 @@ int main(int nargs, const char *argv[])
     layout_init();
 
     ft_init(&sd.ft_listing_len, &sd.ft_listing, &sd.ft_arena);
-
-    int aw, ah;
-    aw = ah = 1024;
-    uint8_t *atlas = calloc(1024 * 1024, sizeof (uint8_t));
-
-    sd.message = STRLIT("Hello, OpenGL font rendering! 123");
-    uint32_t *charcodes = calloc(sd.message.length, sizeof (char));
-    sd.msg_indices = calloc(sd.message.length, sizeof *sd.msg_indices);
-
-    int nchars = 0;
-    for (int i = 0; i < sd.message.length; i++)
-    {
-        bool found = false;
-
-        for (int j = 0; j < nchars; j++)
-            if (charcodes[j] == sd.message.data[i])
-            {
-                sd.msg_indices[i] = j;
-                found = true;
-                break;
-            }
-
-        if (!found)
-        {
-            charcodes[nchars] = (uint32_t)sd.message.data[i];
-            sd.msg_indices[i] = nchars;
-            nchars++;
-        }
-    }
-
-    FontId face = font_create_face("C:/Windows/Fonts/Times.ttf");
-    GlyphInfo *glyphs = malloc(nchars * sizeof *glyphs);
-    Rect *positions = malloc(nchars * sizeof *positions);
-
-    if (!font_atlas_fill(aw, ah, atlas, nchars, charcodes, face, glyphs))
-    {
-        fprintf(stderr, "Failed to fill the font atlas.\n");
-        return EXIT_FAILURE;
-    }
-
-    for (int i = 0; i < nchars; i++)
-        memcpy(&positions[i], &glyphs[i].position, sizeof positions[i]);
-
-    sd.atlas_id = render_init_texture_atlas(aw, ah, atlas, nchars, positions);
-    sd.subtexture_id = 0;
-    sd.msg_info = glyphs;
-    sd.bottom_panel.height = sd.side_panel.width = 600;
-    sd.bottom_panel.hidden = sd.side_panel.hidden = true;
-
-    free(positions);
-    free(atlas);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -287,6 +224,8 @@ static void render()
         break;
     case OP_COLLAPSE_FILE_TREE:
         ft_collapse(sd.ft_listing_len, sd.ft_listing, op_arg);
+        break;
+    default:
         break;
     }
 }

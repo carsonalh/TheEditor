@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 static int id;
 static int hot;
@@ -31,7 +32,7 @@ static float window_height;
 #define MAX_UI_NEST_DEPTH 8
 
 static size_t mask_stack_height = 0;
-static FRect mask_stack[MAX_UI_NEST_DEPTH];
+static FRect *mask_stack = NULL;
 
 static inline FRect frect_intersection(size_t nrects, const FRect *rects)
 {
@@ -64,8 +65,14 @@ static inline FRect frect_intersection(size_t nrects, const FRect *rects)
 
 void ui_begin(void)
 {
+    if (!mask_stack)
+    {
+        mask_stack = malloc(MAX_UI_NEST_DEPTH * sizeof *mask_stack);
+    }
+
     hot = id = 0;
 
+    memset(mask_stack, 0, MAX_UI_NEST_DEPTH * sizeof *mask_stack);
     mask_stack[0] = (FRect){
         .x = 0, .y = 0,
         .width = window_width, .height = window_height,
