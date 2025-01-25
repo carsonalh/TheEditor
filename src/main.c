@@ -30,6 +30,7 @@ static void glfw_cursor_pos_callback(GLFWwindow *window, double pos_x, double po
 static void glfw_mouse_button_callback(GLFWwindow *window, int button, int action, int mods);
 static void glfw_window_refresh_callback(GLFWwindow *window);
 static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int height);
+static void glfw_scroll_callback(GLFWwindow *window, double scrollx, double scrolly);
 static void glad_post_callback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...);
 
 static void render();
@@ -71,6 +72,7 @@ int main(int nargs, const char *argv[])
     glfwSetKeyCallback(window, glfw_key_callback);
     glfwSetCursorPosCallback(window, glfw_cursor_pos_callback);
     glfwSetMouseButtonCallback(window, glfw_mouse_button_callback);
+    glfwSetScrollCallback(window, glfw_scroll_callback);
     glfwSetWindowRefreshCallback(window, glfw_window_refresh_callback);
     glfwSetFramebufferSizeCallback(window, glfw_framebuffer_size_callback);
 
@@ -81,8 +83,6 @@ int main(int nargs, const char *argv[])
     glfwGetFramebufferSize(window, &width, &height);
     render_init();
     render_viewport((Rect){0, 0, width, height});
-
-    layout_init();
 
     ft_init(&sd.ft_listing_len, &sd.ft_listing, &sd.ft_arena);
 
@@ -161,9 +161,15 @@ static void glfw_window_refresh_callback(GLFWwindow *window)
 
 static void glfw_framebuffer_size_callback(GLFWwindow *window, int width, int height)
 {
+    ui_viewport((float)width, (float)height);
     render_viewport((Rect){0, 0, width, height});
     sd.width = width;
     sd.height = height;
+}
+
+static void glfw_scroll_callback(GLFWwindow *window, double scrollx, double scrolly)
+{
+    ui_scroll((Vec2) {(float)scrollx, (float)scrolly});
 }
 
 static void render()
@@ -177,44 +183,53 @@ static void render()
     } PostUiOperation;
 
     PostUiOperation op = OP_NONE;
-    int op_arg = -1;
+    int op_arg = OP_NONE;
 
     ui_viewport((float)sd.width, (float)sd.height);
 
     ui_begin();
-		ui_filetree_begin();
-			for (int i = 0; i < sd.ft_listing_len; i++)
-			{
-				if (ui_filetree_item(&sd.ft_listing[i], ++id))
-				{
-                    if (sd.ft_listing[i].flags & FTI_FILE)
-                        continue;
-
-                    assert(!op && "only one item should ever be activated per render loop");
-
-                    if (sd.ft_listing[i].flags & FTI_OPEN)
+        ui_container_begin(C_SCROLLY, (FRect) {0, 0, 500, sd.height}, ++id);
+            // ui_button((FRect) {0, 0, 300, 150}, ++id);
+            ui_treelist_begin();
+                for (int i = 0; i < sd.ft_listing_len; i++)
+                {
+                    String name = (String)
                     {
-                        op = OP_COLLAPSE_FILE_TREE;
-					}
-                    else
+                        .data = sd.ft_listing[i].name,
+                        .length = sd.ft_listing[i].len_name
+                    };
+
+                    if (ui_treelist_item(sd.ft_listing[i].depth, name, ++id))
                     {
-                        op = OP_EXPAND_FILE_TREE;
+                        if (sd.ft_listing[i].flags & FTI_FILE)
+                            continue;
+
+                        assert(!op && "only one item should ever be activated per render loop");
+
+                        if (sd.ft_listing[i].flags & FTI_OPEN)
+                        {
+                            op = OP_COLLAPSE_FILE_TREE;
+                        }
+                        else
+                        {
+                            op = OP_EXPAND_FILE_TREE;
+                        }
+
+                        op_arg = i;
                     }
 
-                    op_arg = i;
-				}
+                    if (!(sd.ft_listing[i].flags & FTI_OPEN))
+                    {
+                        int parent_depth = sd.ft_listing[i].depth;
 
-                if (!(sd.ft_listing[i].flags & FTI_OPEN))
-                {
-                    int parent_depth = sd.ft_listing[i].depth;
-
-                    while (
-                        i + 1 < sd.ft_listing_len
-                        && sd.ft_listing[i + 1].depth > parent_depth)
-                        i++;
+                        while (
+                            i + 1 < sd.ft_listing_len
+                            && sd.ft_listing[i + 1].depth > parent_depth)
+                            i++;
+                    }
                 }
-			}
-		ui_filetree_end();
+            ui_treelist_end();
+        ui_container_end();
     ui_end();
 
     switch (op)
@@ -228,6 +243,10 @@ static void render()
     default:
         break;
     }
+
+    // render_push_colored_quad((FRect) {0, 0, 200, 200}, COLOR_RGB(0xff0000), 0, NULL);
+    // render_push_colored_quad((FRect) {400, 300, 200, 200}, COLOR_RGB(0x00ff00), 0, NULL);
+    // render_draw();
 }
 
 static void glad_post_callback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...)

@@ -5,79 +5,160 @@
 #include <assert.h>
 
 #define MAX_TEXTURE_UNITS 16
-#define MAX_RENDERABLE_QUADS 2048
+#define MAX_RENDERABLE_QUADS 1024
 
 #define STR_(X) #X
 #define STR(X) STR_(X)
 
 static const char *vert_src = "\
 #version 330 core\n\
-layout (location = 0) in vec3 position; // the position variable has attribute position 0\n\
+layout (location = 0) in vec4 position;\n\
 layout (location = 1) in vec3 color;\n\
 layout (location = 2) in int useTexture;\n\
-layout (location = 3) in vec2 texCoords;\n\
+layout (location = 3) in vec4 texCoords;\n\
 layout (location = 4) in vec4 clipMask;\n\
-layout (location = 4) in int textureId;\n\
-layout (location = 5) in int z;\n\
+layout (location = 5) in int textureId;\n\
+layout (location = 6) in int z;\n\
 \n\
-uniform mat4 projection;\n\
-\n\
-out vec3 vertex_Color;\n\
-flat out int vertex_UseTexture;\n\
-flat out int vertex_TextureId;\n\
-out vec2 vertex_TexCoords;\n\
-out vec4 vertex_ClipMask;\n\
-out vec3 vertex_Position;\n\
+out VS_OUT\n\
+{\n\
+    vec3 color;\n\
+    flat int useTexture;\n\
+    flat int textureId;\n\
+    vec4 texCoords;\n\
+    vec4 clipMask;\n\
+    float z;\n\
+} vs_out;\n\
 \n\
 void main()\n\
 {\n\
-    vertex_Color = color;\n\
-	vertex_ClipMask = clipMask;\n\
-    vertex_UseTexture = useTexture;\n\
-    vertex_TextureId = textureId;\n\
-    vertex_TexCoords = texCoords;\n\
-	vertex_Position = vec3(position.xy, float(z) / 128.01f);\n\
-    gl_Position = projection * vec4(position, 1.0);\n\
+    vs_out.color = color;\n\
+    vs_out.clipMask = clipMask;\n\
+    vs_out.useTexture = useTexture;\n\
+    vs_out.textureId = textureId;\n\
+    vs_out.texCoords = texCoords;\n\
+    vs_out.z = float(z) / 128.01f;\n\
+    gl_Position = position;\n\
+}\n\
+";
+
+static const char *geom_src = "\
+#version 330 core\n\
+\n\
+layout (points) in;\n\
+layout (triangle_strip, max_vertices = 4) out;\n\
+\n\
+uniform mat4 projection;\n\
+\n\
+in VS_OUT\n\
+{\n\
+    vec3 color;\n\
+    flat int useTexture;\n\
+    flat int textureId;\n\
+    vec4 texCoords;\n\
+    vec4 clipMask;\n\
+    float z;\n\
+} gs_in[];\n\
+\n\
+out vec3 frag_Color;\n\
+flat out int frag_UseTexture;\n\
+flat out int frag_TextureId;\n\
+out vec2 frag_TexCoords;\n\
+out vec4 frag_ClipMask;\n\
+out vec3 frag_Position;\n\
+\n\
+void main()\n\
+{\n\
+    float x, y, width, height;\n\
+    float tex_x, tex_y, tex_width, tex_height;\n\
+    x = gl_in[0].gl_Position.x;\n\
+    y = gl_in[0].gl_Position.y;\n\
+    width = gl_in[0].gl_Position.z;\n\
+    height = gl_in[0].gl_Position.w;\n\
+    tex_x = gs_in[0].texCoords.x;\n\
+    tex_y = gs_in[0].texCoords.y;\n\
+    tex_width = gs_in[0].texCoords.z;\n\
+    tex_height = gs_in[0].texCoords.w;\n\
+\n\
+    frag_Color = gs_in[0].color;\n\
+    frag_UseTexture = gs_in[0].useTexture;\n\
+    frag_TextureId = gs_in[0].textureId;\n\
+    frag_TexCoords = vec2(tex_x, tex_y);\n\
+    frag_ClipMask = gs_in[0].clipMask;\n\
+    frag_Position = vec3(x, y, gs_in[0].z);\n\
+    gl_Position = projection * vec4(frag_Position, 1.0);\n\
+    EmitVertex();\n\
+\n\
+    frag_Color = gs_in[0].color;\n\
+    frag_UseTexture = gs_in[0].useTexture;\n\
+    frag_TextureId = gs_in[0].textureId;\n\
+    frag_TexCoords = vec2(tex_x + tex_width, tex_y);\n\
+    frag_ClipMask = gs_in[0].clipMask;\n\
+    frag_Position = vec3(x + width, y, gs_in[0].z);\n\
+    gl_Position = projection * vec4(frag_Position, 1.0);\n\
+    EmitVertex();\n\
+\n\
+    frag_Color = gs_in[0].color;\n\
+    frag_UseTexture = gs_in[0].useTexture;\n\
+    frag_TextureId = gs_in[0].textureId;\n\
+    frag_TexCoords = vec2(tex_x, tex_y + tex_height);\n\
+    frag_ClipMask = gs_in[0].clipMask;\n\
+    frag_Position = vec3(x, y + height, gs_in[0].z);\n\
+    gl_Position = projection * vec4(frag_Position, 1.0);\n\
+    EmitVertex();\n\
+\n\
+    frag_Color = gs_in[0].color;\n\
+    frag_UseTexture = gs_in[0].useTexture;\n\
+    frag_TextureId = gs_in[0].textureId;\n\
+    frag_TexCoords = vec2(tex_x + tex_width, tex_y + tex_height);\n\
+    frag_ClipMask = gs_in[0].clipMask;\n\
+    frag_Position = vec3(x + width, y + height, gs_in[0].z);\n\
+    gl_Position = projection * vec4(frag_Position, 1.0);\n\
+    EmitVertex();\n\
+\n\
+    EndPrimitive();\n\
 }\n\
 ";
 
 static const char *frag_src = "\
 #version 330 core\n\
-out vec4 FragColor;\n\
 \n\
 uniform sampler2D uFontAtlas[" STR(MAX_TEXTURE_UNITS) "];\n\
 \n\
-in vec3 vertex_Color;\n\
-flat in int vertex_UseTexture;\n\
-flat in int vertex_TextureId;\n\
-in vec2 vertex_TexCoords;\n\
-in vec4 vertex_ClipMask;\n\
-in vec3 vertex_Position;\n\
+in vec3 frag_Color;\n\
+flat in int frag_UseTexture;\n\
+flat in int frag_TextureId;\n\
+in vec2 frag_TexCoords;\n\
+in vec4 frag_ClipMask;\n\
+in vec3 frag_Position;\n\
+\n\
+out vec4 FragColor;\n\
 \n\
 void main()\n\
 {\n\
-    vec3 color = vertex_Color;\n\
+    vec3 color = frag_Color;\n\
     float a = 1.0f;\n\
 \n\
-    if (vertex_UseTexture != 0)\n\
+    if (frag_UseTexture != 0)\n\
     {\n\
-        a = texture(uFontAtlas[vertex_TextureId], vertex_TexCoords).x;\n\
+        a = texture(uFontAtlas[frag_TextureId], frag_TexCoords).x;\n\
         color = vec3(a, a, a);\n\
     }\n\
 \n\
     {\n\
 		float x, y, width, height;\n\
 \n\
-		x = vertex_ClipMask.x;\n\
-		y = vertex_ClipMask.y;\n\
-		width = vertex_ClipMask.z;\n\
-		height = vertex_ClipMask.w;\n\
+		x = frag_ClipMask.x;\n\
+		y = frag_ClipMask.y;\n\
+		width = frag_ClipMask.z;\n\
+		height = frag_ClipMask.w;\n\
 \n\
-        if (!(x < vertex_Position.x && vertex_Position.x < x + width &&\n\
-            y < vertex_Position.y && vertex_Position.y < y + height))\n\
+        if (!(x < frag_Position.x && frag_Position.x < x + width &&\n\
+            y < frag_Position.y && frag_Position.y < y + height))\n\
         {\n\
             a = 0.0f;\n\
         }\n\
+        // color = vec3(1.0f, frag_Position.xy / 1000.0f);\n\
     }\n\
 \n\
     FragColor = vec4(color, a);\n\
@@ -104,38 +185,44 @@ typedef struct {
     unsigned int tex_ids[MAX_TEXTURE_UNITS];
 
     size_t n_quads;
-    float buf_position[6 * MAX_RENDERABLE_QUADS][3];
-    float buf_color[6 * MAX_RENDERABLE_QUADS][3];
-    float buf_tex_coords[6 * MAX_RENDERABLE_QUADS][2];
-    int buf_use_texture[6 * MAX_RENDERABLE_QUADS];
-    float buf_clip_masks[6 * MAX_RENDERABLE_QUADS][4];
-    int8_t buf_z[6 * MAX_RENDERABLE_QUADS];
+    FRect buf_position[MAX_RENDERABLE_QUADS];
+    Vec3 buf_color[MAX_RENDERABLE_QUADS];
+    FRect buf_tex_coords[MAX_RENDERABLE_QUADS];
+    int8_t buf_use_texture[MAX_RENDERABLE_QUADS];
+    FRect buf_clip_masks[MAX_RENDERABLE_QUADS];
+    int8_t buf_tex_ids[MAX_RENDERABLE_QUADS];
+    int8_t buf_z[MAX_RENDERABLE_QUADS];
 } RenderData;
 
 static RenderData *rd = NULL;
-static bool initialized = false;
 
 void render_init(void)
 {
-    assert(!initialized);
+    assert(!rd && "render_init() can only be called once");
 
-    unsigned int vert_shader, frag_shader;
+    unsigned int vert_shader, geom_shader, frag_shader;
     rd = calloc(1, sizeof *rd);
     rd->program = glCreateProgram();
     vert_shader = glCreateShader(GL_VERTEX_SHADER);
+    geom_shader = glCreateShader(GL_GEOMETRY_SHADER);
     frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(vert_shader, 1, &vert_src, NULL);
     glCompileShader(vert_shader);
+    glShaderSource(geom_shader, 1, &geom_src, NULL);
+    glCompileShader(geom_shader);
     glShaderSource(frag_shader, 1, &frag_src, NULL);
     glCompileShader(frag_shader);
     glAttachShader(rd->program, vert_shader);
+    glAttachShader(rd->program, geom_shader);
     glAttachShader(rd->program, frag_shader);
     glLinkProgram(rd->program);
     glDeleteShader(vert_shader);
+    glDeleteShader(geom_shader);
     glDeleteShader(frag_shader);
 
     char buffer[1024] = {0};
-    glGetShaderInfoLog(vert_shader, 1024, NULL, buffer);
+    glGetShaderInfoLog(geom_shader, 1024, NULL, buffer);
+    // glGetProgramInfoLog(rd->program, 1024, NULL, buffer);
     printf("%s\n", buffer);
 
     rd->u_projection = glGetUniformLocation(rd->program, "projection");
@@ -157,44 +244,44 @@ void render_init(void)
 
     glGenBuffers(1, &rd->position_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, rd->position_vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * 3 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 3 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, NULL);
     glEnableVertexAttribArray(0);
 
     glGenBuffers(1, &rd->color_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, rd->color_vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * 3 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 3 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
     glEnableVertexAttribArray(1);
 
     glGenBuffers(1, &rd->use_texture_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, rd->use_texture_vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * sizeof (int), NULL, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(2, 1, GL_INT, GL_FALSE, 0, NULL);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * sizeof (int8_t), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribIPointer(2, 1, GL_BYTE, 0, NULL);
     glEnableVertexAttribArray(2);
 
     glGenBuffers(1, &rd->tex_coords_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, rd->tex_coords_vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * 2 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 4 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, NULL);
     glEnableVertexAttribArray(3);
 
     glGenBuffers(1, &rd->clip_mask_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, rd->clip_mask_vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * 4 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 4 * sizeof (float), NULL, GL_DYNAMIC_DRAW);
     glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 0, NULL);
     glEnableVertexAttribArray(4);
 
     glGenBuffers(1, &rd->tex_index_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, rd->tex_index_vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * 1 * sizeof (int), NULL, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(5, 1, GL_INT, GL_FALSE, 0, NULL);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 1 * sizeof (int8_t), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribIPointer(5, 1, GL_BYTE, 0, NULL);
     glEnableVertexAttribArray(5);
 
     glGenBuffers(1, &rd->z_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, rd->z_vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 6 * 1 * sizeof (int8_t), NULL, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(6, 1, GL_BYTE, GL_FALSE, 0, NULL);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RENDERABLE_QUADS * 1 * sizeof (int8_t), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribIPointer(6, 1, GL_BYTE, 0, NULL);
     glEnableVertexAttribArray(6);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -232,12 +319,6 @@ int render_init_texture_atlas(size_t width, size_t height, const uint8_t *buffer
     rd->tex_ids[rd->n_tex_atlases] = ta->tex_id;
     glUniform1iv(rd->u_sampler, MAX_TEXTURE_UNITS, (int*)rd->tex_ids);
 
-    // TODO make u_sampler a uniform buffer of texture ids, and add a texture id property to the shader
-    // glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, ta->tex_id);
-    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, buffer);
-    // glUniform1i(rd->u_sampler, ta->tex_id);
-
     ta->n_positions = nsubtextures;
     Rect *positions = malloc(nsubtextures * sizeof *subtexture_boxes);
     memcpy(positions, subtexture_boxes, nsubtextures * sizeof *subtexture_boxes);
@@ -249,62 +330,52 @@ int render_init_texture_atlas(size_t width, size_t height, const uint8_t *buffer
 }
 
 /** Renders at the location with the top left as the origin by default.  Removed after draw. */
-void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, uint8_t z, const FRect *clip_mask)
+void render_push_textured_quad(int atlasid, int subtexid, Vec2 pos, int8_t z, const FRect *clip_mask)
 {
     assert(rd->n_quads < MAX_RENDERABLE_QUADS && "cannot render more quads the buffer size");
 
-    float x0, y0, x1, y1;
-    float width, height;
     const Rect *subtexture;
     const TextureAtlas *atlas;
 
     atlas = &rd->tex_atlases[atlasid];
     subtexture = &rd->tex_atlases[atlasid].positions[subtexid];
-    width = (float)subtexture->width;
-    height = (float)subtexture->height;
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 0][0], (float[3]){pos.x, pos.y}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 1][0], (float[3]){pos.x, pos.y + height}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 2][0], (float[3]){pos.x + width, pos.y}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 3][0], (float[3]){pos.x, pos.y + height}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 4][0], (float[3]){pos.x + width, pos.y}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 5][0], (float[3]){pos.x + width, pos.y + height}, sizeof (float[3]));
 
-    memset(&rd->buf_use_texture[rd->n_quads * 6], 0xff, 6 * sizeof rd->buf_use_texture[0]);
+    FRect position = {
+        .x = pos.x, .y = pos.y,
+        .width = (float)subtexture->width,
+        .height = (float)subtexture->height,
+    };
+    rd->buf_position[rd->n_quads] = position;
 
-    x0 = (float)subtexture->x / (float)atlas->width;
-    y0 = (float)subtexture->y / (float)atlas->width;
-    x1 = x0 + (float)subtexture->width / (float)atlas->width;
-    y1 = y0 + (float)subtexture->height / (float)atlas->width;
+    rd->buf_use_texture[rd->n_quads] = 1;
 
-    memcpy(&rd->buf_tex_coords[rd->n_quads * 6 + 0][0], (float[2]){x0, y0}, sizeof (float[2]));
-    memcpy(&rd->buf_tex_coords[rd->n_quads * 6 + 1][0], (float[2]){x0, y1}, sizeof (float[2]));
-    memcpy(&rd->buf_tex_coords[rd->n_quads * 6 + 2][0], (float[2]){x1, y0}, sizeof (float[2]));
-    memcpy(&rd->buf_tex_coords[rd->n_quads * 6 + 3][0], (float[2]){x0, y1}, sizeof (float[2]));
-    memcpy(&rd->buf_tex_coords[rd->n_quads * 6 + 4][0], (float[2]){x1, y0}, sizeof (float[2]));
-    memcpy(&rd->buf_tex_coords[rd->n_quads * 6 + 5][0], (float[2]){x1, y1}, sizeof (float[2]));
+    FRect texture_space_rect = {
+        .x = (float)subtexture->x / (float)atlas->width,
+        .y = (float)subtexture->y / (float)atlas->width,
+        .width = (float)subtexture->width / (float)atlas->width,
+        .height = (float)subtexture->height / (float)atlas->width,
+    };
+    rd->buf_tex_coords[rd->n_quads] = texture_space_rect;
 
-    float clip_x, clip_y, clip_width, clip_height;
+    FRect clip;
 
     if (clip_mask)
     {
-        clip_x = clip_mask->x;
-        clip_y = clip_mask->y;
-        clip_width = clip_mask->width;
-        clip_height = clip_mask->height;
+        clip = *clip_mask;
     }
     else
     {
-        clip_x = clip_y = 0;
-        clip_width = (float)rd->window_width;
-        clip_height = (float)rd->window_height;
+        clip = (FRect)
+        {
+            .x = 0, .y = 0,
+            .width = (float)rd->window_width,
+            .height = (float)rd->window_height,
+        };
     }
 
-    float cm_data[4] = {clip_x, clip_y, clip_width, clip_height};
-    for (int i = 0; i < 6; i++)
-		memcpy(&rd->buf_clip_masks[rd->n_quads * 6 + i], cm_data, sizeof cm_data);
-
-    for (int i = 0; i < 6; i++)
-        rd->buf_z[rd->n_quads * 6 + i] = z;
+    rd->buf_clip_masks[rd->n_quads] = clip;
+    rd->buf_z[rd->n_quads] = z;
+    rd->buf_tex_ids[rd->n_quads] = atlasid;
 
     rd->n_quads++;
 }
@@ -313,19 +384,12 @@ void render_push_colored_quad(FRect pos, Color color, int8_t z, const FRect *cli
 {
     assert(rd->n_quads < MAX_RENDERABLE_QUADS && "cannot render more quads the buffer size");
 
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 0][0], (float[3]){pos.x, pos.y}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 1][0], (float[3]){pos.x, pos.y + pos.height}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 2][0], (float[3]){pos.x + pos.width, pos.y}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 3][0], (float[3]){pos.x, pos.y + pos.height}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 4][0], (float[3]){pos.x + pos.width, pos.y}, sizeof (float[3]));
-    memcpy(&rd->buf_position[rd->n_quads * 6 + 5][0], (float[3]){pos.x + pos.width, pos.y + pos.height}, sizeof (float[3]));
+    memcpy(&rd->buf_position[rd->n_quads], (float[4]){pos.x, pos.y, pos.width, pos.height}, sizeof rd->buf_position[0]);
 
     float rgb[3];
-    for (int i = 0; i < 6; i++)
-    {
-        color_as_rgb(color, rgb);
-        memcpy(&rd->buf_color[rd->n_quads * 6 + i], rgb, sizeof rd->buf_color[0]);
-    }
+    color_as_rgb(color, rgb);
+    memcpy(&rd->buf_color[rd->n_quads], rgb, sizeof rd->buf_color[0]);
+    rd->buf_use_texture[rd->n_quads] = 0;
 
     float clip_x, clip_y, clip_width, clip_height;
 
@@ -343,12 +407,10 @@ void render_push_colored_quad(FRect pos, Color color, int8_t z, const FRect *cli
         clip_height = (float)rd->window_height;
     }
 
-    float cm_data[4] = {clip_x, clip_y, clip_width, clip_height};
-    for (int i = 0; i < 6; i++)
-		memcpy(&rd->buf_clip_masks[rd->n_quads * 6 + i], cm_data, sizeof cm_data);
+    memcpy(&rd->buf_clip_masks[rd->n_quads], (float[4]){clip_x, clip_y, clip_width, clip_height}, sizeof rd->buf_clip_masks[0]);
 
-    for (int i = 0; i < 6; i++)
-        rd->buf_z[rd->n_quads * 6 + i] = z;
+    rd->buf_tex_ids[rd->n_quads] = 0;
+    rd->buf_z[rd->n_quads] = z;
 
     rd->n_quads++;
 }
@@ -360,17 +422,19 @@ void render_draw(void)
     glClear(GL_COLOR_BUFFER_BIT);
 
     glBindBuffer(GL_ARRAY_BUFFER, rd->position_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_position[0], rd->buf_position);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * sizeof rd->buf_position[0], rd->buf_position);
     glBindBuffer(GL_ARRAY_BUFFER, rd->color_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_color[0], rd->buf_color);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * sizeof rd->buf_color[0], rd->buf_color);
     glBindBuffer(GL_ARRAY_BUFFER, rd->use_texture_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_use_texture[0], rd->buf_use_texture);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * sizeof rd->buf_use_texture[0], rd->buf_use_texture);
     glBindBuffer(GL_ARRAY_BUFFER, rd->tex_coords_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_tex_coords[0], rd->buf_tex_coords);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * sizeof rd->buf_tex_coords[0], rd->buf_tex_coords);
     glBindBuffer(GL_ARRAY_BUFFER, rd->clip_mask_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_clip_masks[0], rd->buf_clip_masks);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * sizeof rd->buf_clip_masks[0], rd->buf_clip_masks);
+    glBindBuffer(GL_ARRAY_BUFFER, rd->tex_index_vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * sizeof rd->buf_tex_ids[0], rd->buf_tex_ids);
     glBindBuffer(GL_ARRAY_BUFFER, rd->z_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * 6 * sizeof rd->buf_z[0], rd->buf_z);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, rd->n_quads * sizeof rd->buf_z[0], rd->buf_z);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     float left, right, top, bottom, nearplane, farplane;
@@ -392,14 +456,10 @@ void render_draw(void)
     glUseProgram(rd->program);
     glUniformMatrix4fv(rd->u_projection, 1, GL_TRUE, (float*)camera_matrix);
     glBindVertexArray(rd->vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6 * (GLsizei)rd->n_quads);
+    glDrawArrays(GL_POINTS, 0, (GLsizei)rd->n_quads);
     glBindVertexArray(0);
     glUseProgram(0);
 
-    memset(rd->buf_position, 0, sizeof rd->buf_position);
-    memset(rd->buf_color, 0, sizeof rd->buf_color);
-    memset(rd->buf_tex_coords, 0, sizeof rd->buf_tex_coords);
-    memset(rd->buf_use_texture, 0, sizeof rd->buf_use_texture);
     rd->n_quads = 0;
 }
 

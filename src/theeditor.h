@@ -22,7 +22,8 @@ typedef struct {
     float width, height;
 } FRect;
 
-typedef struct {
+typedef struct
+{
     size_t length;
     char *data;
 } String;
@@ -60,8 +61,6 @@ extern Layout layout;
 
 void color_as_rgb(Color c, float out[3]);
 void color_as_rgba(Color c, float out[4]);
-
-void layout_init(void);
 
 typedef struct {
     size_t index;
@@ -120,16 +119,31 @@ void ft_uninit(size_t len_listing, FileTreeItem *listing, StringArena *strarena)
 void ft_expand(size_t *len_listing, FileTreeItem **listing, StringArena *strarena, int index);
 void ft_collapse(size_t len_listing, FileTreeItem *listing, int index);
 
+typedef enum
+{
+    C_FILLWIDTH  = 1 << 0,
+    C_FILLHEIGHT = 1 << 1,
+    C_SCROLLX    = 1 << 2,
+    C_SCROLLY    = 1 << 3,
+} ContainerFlags;
+
 void ui_begin(void);
 void ui_end(void);
 void ui_mouse_position(float x, float y);
 void ui_mouse_button(bool down);
 void ui_viewport(float width, float height);
+void ui_scroll(Vec2 scroll);
+void ui_container_begin(ContainerFlags flags, FRect where, int id);
+void ui_container_end();
 void ui_filetree_begin(void);
 void ui_filetree_end(void);
 bool ui_filetree_item(const FileTreeItem *item, int id);
+void ui_treelist_begin(void);
+void ui_treelist_end(void);
+bool ui_treelist_item(int depth, String name, int id);
+bool ui_button(FRect where, int id);
 
-/** Throwaway testing for imui. to be removed. */
-bool ui_button(float x, float y, int id);
+// /** Throwaway testing for imui. to be removed. */
+// bool ui_button(float x, float y, int id);
 
 #endif // THE_EDITOR_H

@@ -9,7 +9,6 @@ target_include_directories(glad PUBLIC vendor/glad/include)
 
 add_executable(TheEditor
     src/main.c
-    src/layout.c
     src/util.c
     src/text.c
     src/render.c
