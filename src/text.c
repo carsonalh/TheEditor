@@ -23,7 +23,6 @@ FontId font_create_face(const char *path)
     {
         if (!faces[i])
         {
-            // Param 3 (face index) is useful for fonts with more than one face in the file
             if (FT_New_Face(ft, path, 0, &faces[i]))
                 return -1;
 
@@ -43,63 +42,75 @@ void font_delete_face(FontId id)
 bool font_atlas_fill(size_t width, size_t height, uint8_t *atlas,
                      size_t ncodes, const uint32_t *char_codes,
                      FontId face_id,
-                     GlyphInfo *out_glyphinfos)
+                     GlyphInfo *out_glyphinfos,
+                     FontAtlasFillState *fill_state)
 {
-    uint32_t c;
-    size_t x = 0, y = 0, max_y = 0;
-    FT_Face face;
-    int i;
-
-    face = faces[face_id];
+    FontAtlasFillState local_state = {0};
+    FT_Face face = faces[face_id];
 
     // TODO parameterise
     FT_Set_Pixel_Sizes(face, 0, 32);
 
-    for (i = 0; i < ncodes; i++)
+    if (!fill_state)
     {
-        c = char_codes[i];
+        fill_state = &local_state;
+    }
+
+    const FontAtlasFillState initial_state = *fill_state;
+
+    for (int i = 0; i < ncodes; i++)
+    {
+        uint32_t c = char_codes[i];
 
         if (FT_Load_Char(face, c, FT_LOAD_RENDER))
-            return false;
+            goto fill_failure;
 
         if (face->glyph->bitmap.width > width)
-            return false;
+            goto fill_failure;
 
-        if (x + face->glyph->bitmap.width > width)
+        if (fill_state->x + face->glyph->bitmap.width > width)
         {
-            y = max_y;
-            x = 0;
+            fill_state->y = fill_state->max_y;
+            fill_state->x = 0;
         }
 
-        if (y + face->glyph->bitmap.rows > height)
-            return false;
+        if (fill_state->y + face->glyph->bitmap.rows > height)
+            goto fill_failure;
 
         if (out_glyphinfos)
+        {
             out_glyphinfos[i] = (GlyphInfo){
                 .position = {
-                    .x = (int)x,
-                    .y = (int)y,
+                    .x = fill_state->x,
+                    .y = fill_state->y,
                     .width = face->glyph->bitmap.width,
                     .height = face->glyph->bitmap.rows,
                 },
-                .advance_x = (float)face->glyph->advance.x / 64.0f,
-                .advance_y = (float)face->glyph->advance.y / 64.0f,
+                .advance = {
+                    .x = (float)face->glyph->advance.x / 64.0f,
+                    .y = (float)face->glyph->advance.y / 64.0f,
+                },
                 .bearing = { (float)face->glyph->bitmap_left, -(float)face->glyph->bitmap_top },
             };
+        }
 
         uint8_t *b = face->glyph->bitmap.buffer;
         for (int row = 0; row < (int)face->glyph->bitmap.rows; row++)
         {
-            memcpy(&atlas[width * (y + row) + x],
+            memcpy(&atlas[width * (fill_state->y + row) + fill_state->x],
                    &b[face->glyph->bitmap.width * row],
                    sizeof *b * face->glyph->bitmap.width);
         }
 
-        x += face->glyph->bitmap.width;
+        fill_state->x += face->glyph->bitmap.width;
 
-        if (y + face->glyph->bitmap.rows > max_y)
-            max_y = y + face->glyph->bitmap.rows;
+        if (fill_state->y + face->glyph->bitmap.rows > fill_state->max_y)
+            fill_state->max_y = fill_state->y + face->glyph->bitmap.rows;
     }
 
     return true;
+
+fill_failure:
+    *fill_state = initial_state;
+    return false;
 }

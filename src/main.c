@@ -199,7 +199,9 @@ static void render()
                         .length = sd.ft_listing[i].len_name
                     };
 
-                    if (ui_treelist_item(sd.ft_listing[i].depth, name, ++id))
+                    bool bold = !!(sd.ft_listing[i].flags & FTI_DIRECTORY);
+
+                    if (ui_treelist_item(sd.ft_listing[i].depth, name, bold, ++id))
                     {
                         if (sd.ft_listing[i].flags & FTI_FILE)
                             continue;

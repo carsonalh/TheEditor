@@ -62,13 +62,19 @@ extern Layout layout;
 void color_as_rgb(Color c, float out[3]);
 void color_as_rgba(Color c, float out[4]);
 
-typedef struct {
+typedef struct
+{
     size_t index;
     Rect position;
     Vec2 bearing;
-    float advance_x;
-    float advance_y;
+    Vec2 advance;
 } GlyphInfo;
+
+typedef struct
+{
+    int x, y;
+    int max_y;
+} FontAtlasFillState;
 
 typedef int FontId;
 bool font_init(void);
@@ -77,7 +83,12 @@ bool font_uninit(void);
 FontId font_create_face(const char *path);
 void font_delete_face(FontId id);
 /** Returns true if there was no overflow. */
-bool font_atlas_fill(size_t width, size_t height, uint8_t *atlas, size_t ncodes, const uint32_t *char_codes, FontId face, GlyphInfo *out_glyphinfos);
+bool font_atlas_fill(
+    size_t width, size_t height, uint8_t *atlas,
+    size_t ncodes, const uint32_t *char_codes,
+    FontId face,
+    GlyphInfo *out_glyphinfos,
+    FontAtlasFillState *fill_state);
 
 /** To be called once before all render functions */
 void render_init(void);
@@ -140,7 +151,7 @@ void ui_filetree_end(void);
 bool ui_filetree_item(const FileTreeItem *item, int id);
 void ui_treelist_begin(void);
 void ui_treelist_end(void);
-bool ui_treelist_item(int depth, String name, int id);
+bool ui_treelist_item(int depth, String name, bool bold, int id);
 bool ui_button(FRect where, int id);
 
 // /** Throwaway testing for imui. to be removed. */

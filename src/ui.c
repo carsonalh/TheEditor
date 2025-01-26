@@ -224,15 +224,31 @@ void ui_treelist_begin(void)
         uint32_t *codes = malloc(treelist_glyph_info_len * sizeof *codes);
         for (int i = 0; i < treelist_glyph_info_len; i++)
             codes[i] = begin + i;
-        treelist_glyph_info = malloc(treelist_glyph_info_len * sizeof *treelist_glyph_info);
-        font_atlas_fill(width, height, atlas_data, treelist_glyph_info_len, codes, face, treelist_glyph_info);
-        free(codes);
+        // allocate double the glyphs for regular and bold
+        treelist_glyph_info = malloc(2 * treelist_glyph_info_len * sizeof *treelist_glyph_info);
+        FontAtlasFillState fill_state = {0};
+        font_atlas_fill(
+            width, height, atlas_data,
+            treelist_glyph_info_len, codes,
+            face,
+            treelist_glyph_info,
+            &fill_state);
         font_delete_face(face);
+        face = font_create_face("C:\\Windows\\Fonts\\segoeuib.ttf");
+        font_atlas_fill(
+            width, height, atlas_data,
+            treelist_glyph_info_len, codes,
+            face,
+            treelist_glyph_info + treelist_glyph_info_len,
+            &fill_state);
+        font_delete_face(face);
+        free(codes);
 
-        Rect *boxes = malloc(treelist_glyph_info_len * sizeof *boxes);
-        for (int i = 0; i < treelist_glyph_info_len; i++)
+        // also need separate boxes for regular and bold
+        Rect *boxes = malloc(2 * treelist_glyph_info_len * sizeof *boxes);
+        for (int i = 0; i < 2 * treelist_glyph_info_len; i++)
             boxes[i] = treelist_glyph_info[i].position;
-        treelist_atlas = render_init_texture_atlas(width, height, atlas_data, treelist_glyph_info_len, boxes);
+        treelist_atlas = render_init_texture_atlas(width, height, atlas_data, 2 * treelist_glyph_info_len, boxes);
         free(boxes);
     }
 
@@ -243,7 +259,7 @@ void ui_treelist_end(void)
 {
 }
 
-bool ui_treelist_item(int depth, String text, int id)
+bool ui_treelist_item(int depth, String text, bool bold, int id)
 {
     const float baseline_padding = 12;
     const float depth_distance = 24;
@@ -286,21 +302,24 @@ bool ui_treelist_item(int depth, String text, int id)
         where.y + where.height - 12,
     };
 
+    GlyphInfo *glyph_buffer = treelist_glyph_info;
+    if (bold)
+        glyph_buffer += treelist_glyph_info_len;
+
     for (int i = 0; i < text.length; i++)
     {
         char c = text.data[i];
-        Vec2 with_bearing = v2_add(offset, treelist_glyph_info[c - ' '].bearing);
+        Vec2 with_bearing = v2_add(offset, glyph_buffer[c - ' '].bearing);
 
         render_push_textured_quad(
             treelist_atlas,
-            (int)(c - ' '),
+            (int)(c - ' ') + (bold ? treelist_glyph_info_len : 0),
             with_bearing,
             1,
             &mask
 		);
 
-        offset.x += treelist_glyph_info[c - ' '].advance_x;
-        offset.y += treelist_glyph_info[c - ' '].advance_y;
+        offset = v2_add(offset, glyph_buffer[c - ' '].advance);
     }
 
     return was_activated;
