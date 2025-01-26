@@ -83,8 +83,13 @@ int main(int nargs, const char *argv[])
     glfwGetFramebufferSize(window, &width, &height);
     render_init();
     render_viewport((Rect){0, 0, width, height});
+    ui_viewport((float)width, (float)height);
+    sd.width = width;
+    sd.height = height;
 
     ft_init(&sd.ft_listing_len, &sd.ft_listing, &sd.ft_arena);
+
+    glfwSwapInterval(1);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -92,17 +97,13 @@ int main(int nargs, const char *argv[])
 
         now = glfwGetTime();
 
-        glfwGetFramebufferSize(window, &width, &height);
-        render_viewport((Rect){0, 0, width, height});
-        sd.width = width;
-        sd.height = height;
-
         delta = now - last_frame;
 
         if (delta >= SPF_LIMIT)
         {
             render();
             glfwSwapBuffers(window);
+            Sleep(10);
             last_frame = now;
             // printf("Frame time = %.1lfms\n", 1000. * delta);
         }

@@ -47,5 +47,8 @@ target_compile_options(TheEditor PRIVATE
     $<$<CONFIG:Debug>:/Zi /W4 /fsanitize=address /external:anglebrackets /external:W0 /wd4100>
     $<$<CONFIG:Release>:/W4 /wd4100>
 )
+target_link_options(TheEditor PRIVATE
+    $<$<CONFIG:Debug>:/PROFILE>
+)
 target_link_libraries(TheEditor PRIVATE glfw user32 freetype glad)
 target_include_directories(TheEditor PRIVATE vendor/glfw/include)
