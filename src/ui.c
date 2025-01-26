@@ -194,15 +194,6 @@ void ui_end(void)
     render_draw();
 }
 
-static int filetree_atlas = -1;
-static size_t filetree_listing_len;
-static FileTreeItem *filetree_listing = NULL;
-static StringArena filetree_arena;
-static size_t filetree_glyph_info_len;
-static GlyphInfo *filetree_glyph_info;
-static float filetree_item_y_offset;
-static float filetree_scroll_offset_y = 0.0f;
-
 static float treelist_item_offset_y;
 static int treelist_atlas = -1;
 static size_t treelist_glyph_info_len;
