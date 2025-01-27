@@ -1,14 +1,15 @@
 #include "Application.hpp"
 
+#include <windowsx.h>
+#include <dwrite.h>
 #include <tchar.h>
 #include <iostream>
 
+using namespace ed;
+
 Application::Application()
     : m_Hwnd(nullptr)
-    , m_Direct2DFactory()
-    , m_LightSlateGrayBrush()
-    , m_CornflowerBlueBrush()
-    , m_RenderTarget()
+    , m_MousePosition(std::nullopt)
 {
 }
 
@@ -71,40 +72,50 @@ HRESULT Application::OnRender()
 
     m_RenderTarget->BeginDraw();
     m_RenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
-    m_RenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+    m_RenderTarget->Clear(D2D1::ColorF(0x202020));
 
-    auto size = m_RenderTarget->GetSize();
+    size_t items_drawn = 0;
+    constexpr float item_height = 48.0f;
 
-    for (float x = 10; x < size.width; x += 10)
+    for (int i = 0; i < m_FileTree.items.size(); i++, items_drawn++)
     {
-        const auto from = D2D1::Point2(x, 0.0f);
-        const auto to = D2D1::Point2(x, size.height);
-        m_RenderTarget->DrawLine(from, to, m_LightSlateGrayBrush);
+        D2D1_RECT_F rect = {
+            .left = 0.0f,
+            .top = (float)(items_drawn * item_height),
+            .right = 500.0f,
+            .bottom = (float)((items_drawn + 1) * (item_height)),
+        };
+        const auto& item = m_FileTree.items[i];
+
+        Rect linear_rect = {
+            .x = rect.left,
+            .y = rect.top,
+            .width = rect.right - rect.left,
+            .height = rect.bottom - rect.top,
+        };
+
+        auto* brush = &m_HoverBrush;
+
+        if (m_MousePosition.has_value() && linear_rect.contains(*m_MousePosition))
+        {
+            brush = &m_ActiveBrush;
+        }
+
+        m_RenderTarget->FillRectangle(rect, *brush);
+
+        if (item.flags & FileTreeItem::Directory)
+        {
+            m_RenderTarget->DrawText(item.name.c_str(), item.name.length(), m_BoldTextFormat, rect, m_TextBrush);
+
+            if (!(item.flags & FileTreeItem::Open))
+                while (i + 1 < m_FileTree.items.size() && m_FileTree.items[i + 1].depth > item.depth)
+                    i++;
+        }
+        else
+        {
+            m_RenderTarget->DrawText(item.name.c_str(), item.name.length(), m_RegularTextFormat, rect, m_TextBrush);
+        }
     }
-
-    for (float y = 10; y < size.height; y += 10)
-    {
-        const auto from = D2D1::Point2(0.0f, y);
-        const auto to = D2D1::Point2(size.width, y);
-        m_RenderTarget->DrawLine(from, to, m_LightSlateGrayBrush);
-    }
-
-    auto rect1 = D2D1::RectF(
-        size.width / 2.0f - 50.0f,
-        size.height / 2.0f - 50.0f,
-        size.width / 2.0f + 50.0f,
-        size.height / 2.0f + 50.0f
-    );
-
-    auto rect2 = D2D1::RectF(
-        size.width / 2.0f - 100.0f,
-        size.height / 2.0f - 100.0f,
-        size.width / 2.0f + 100.0f,
-        size.height / 2.0f + 100.0f
-    );
-
-    m_RenderTarget->FillRectangle(rect1, m_LightSlateGrayBrush);
-    m_RenderTarget->DrawRectangle(rect2, m_CornflowerBlueBrush);
 
     hr = m_RenderTarget->EndDraw();
 
@@ -132,8 +143,8 @@ LRESULT Application::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
     case WM_CREATE:
         {
             auto cs = reinterpret_cast<LPCREATESTRUCT>(lParam);
-            auto da = reinterpret_cast<Application*>(cs->lpCreateParams);
-            SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(da));
+            app = reinterpret_cast<Application*>(cs->lpCreateParams);
+            SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
         }
         return 1;
     case WM_CLOSE:
@@ -150,14 +161,33 @@ LRESULT Application::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             height = HIWORD(lParam);
             app->OnResize(width, height);
         }
-        return 0;
+        break;
     case WM_DISPLAYCHANGE:
         InvalidateRect(hWnd, nullptr, false);
-        return 0;
+        break;
     case WM_PAINT:
         app->OnRender();
         ValidateRect(hWnd, nullptr);
-        return 0;
+        break;
+    case WM_MOUSEMOVE:
+        {
+            if (!app->m_MousePosition.has_value())
+            {
+                TRACKMOUSEEVENT tme = { sizeof tme };
+                tme.dwFlags = TME_LEAVE;
+                tme.hwndTrack = hWnd;
+                TrackMouseEvent(&tme);
+            }
+            app->m_MousePosition = Vec2 {
+                (float)GET_X_LPARAM(lParam),
+                (float)GET_Y_LPARAM(lParam)
+            };
+            InvalidateRect(hWnd, nullptr, false);
+        }
+        break;
+    case WM_MOUSELEAVE:
+        app->m_MousePosition = std::nullopt;
+        break;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -176,6 +206,40 @@ HRESULT Application::CreateDeviceIndependentResources()
         return hr;
 
     m_Direct2DFactory = factory;
+
+    IDWriteFactory *direct_write_factory;
+
+    hr = DWriteCreateFactory(
+        DWRITE_FACTORY_TYPE_ISOLATED,
+        __uuidof(IDWriteFactory),
+        reinterpret_cast<IUnknown**>(&direct_write_factory)
+    );
+    if (!SUCCEEDED(hr))
+        return hr;
+
+    m_DirectWriteFactory = direct_write_factory;
+
+    IDWriteTextFormat* text_format_ptr;
+
+    tstring font_family_name = _T("Segoe UI");
+
+    hr = m_DirectWriteFactory->CreateTextFormat(
+        font_family_name.c_str(), nullptr, DWRITE_FONT_WEIGHT_NORMAL,
+        DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+        32.0f, _T("en-au"), &text_format_ptr
+    );
+    if (!SUCCEEDED(hr))
+        return hr;
+    m_RegularTextFormat = text_format_ptr;
+
+    hr = m_DirectWriteFactory->CreateTextFormat(
+        font_family_name.c_str(), nullptr, DWRITE_FONT_WEIGHT_BOLD,
+        DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+        32.0f, _T("en-au"), &text_format_ptr
+    );
+    if (!SUCCEEDED(hr))
+        return hr;
+    m_BoldTextFormat = text_format_ptr;
 
     return hr;
 }
@@ -203,15 +267,20 @@ HRESULT Application::CreateDeviceResources()
         return hr;
     m_RenderTarget = renderTarget;
 
-    hr = m_RenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::LightSlateGray), &brush);
+    hr = m_RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x404040), &brush);
     if (!SUCCEEDED(hr))
         return hr;
-    m_LightSlateGrayBrush = brush;
+    m_HoverBrush = brush;
 
-    hr = m_RenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::CornflowerBlue), &brush);
+    hr = m_RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x808080), &brush);
     if (!SUCCEEDED(hr))
         return hr;
-    m_CornflowerBlueBrush = brush;
+    m_ActiveBrush = brush;
+
+    hr = m_RenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), &brush);
+    if (!SUCCEEDED(hr))
+        return hr;
+    m_TextBrush = brush;
 
     return hr;
 }

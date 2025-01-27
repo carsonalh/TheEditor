@@ -9,8 +9,10 @@ add_executable(TheEditor
     src/Application.cpp
     src/FileTree.hpp
     src/FileTree.cpp
+    src/LinearMath.hpp
     src/main.cpp
-    src/TheEditor.hpp)
+    src/TheEditor.hpp
+)
 
 find_package(Python REQUIRED)
 execute_process(
@@ -37,9 +39,10 @@ add_custom_command(
 target_compile_definitions(
     TheEditor PRIVATE
     _CRT_SECURE_NO_WARNINGS
+    UNICODE _UNICODE
 )
 target_compile_options(TheEditor PRIVATE
     $<$<CONFIG:Debug>:/Zi /W4 /fsanitize=address /external:anglebrackets /external:W0 /wd4100>
     $<$<CONFIG:Release>:/W4 /wd4100>
 )
-target_link_libraries(TheEditor PRIVATE user32 d2d1)
+target_link_libraries(TheEditor PRIVATE user32 d2d1 dwrite)

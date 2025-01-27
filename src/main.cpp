@@ -1,6 +1,3 @@
-#ifdef UNICODE
-#undef UNICODE
-#endif // UNICODE
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -23,7 +20,7 @@ int main(void)
 #endif
 
     {
-        Application app;
+        ed::Application app;
 
         if (!SUCCEEDED(app.Initialize()))
         {
