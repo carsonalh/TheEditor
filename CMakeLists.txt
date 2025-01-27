@@ -5,9 +5,12 @@ project(TheEditor)
 set(CMAKE_CXX_STANDARD 23)
 
 add_executable(TheEditor
+    src/Application.hpp
+    src/Application.cpp
     src/FileTree.hpp
     src/FileTree.cpp
-    src/main.cpp)
+    src/main.cpp
+    src/TheEditor.hpp)
 
 find_package(Python REQUIRED)
 execute_process(

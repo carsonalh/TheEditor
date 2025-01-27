@@ -11,15 +11,12 @@
 using namespace ed;
 
 static constexpr size_t FileTreeInitialSize = 256;
-static constexpr size_t StringBufferInitialSize = 2048;
 static constexpr size_t SubListingBufferInitialSize = 64;
 
 FileTree::FileTree()
     : items()
-    , string_buffer()
 {
     items.reserve(FileTreeInitialSize);
-    string_buffer.reserve(StringBufferInitialSize);
 
     WIN32_FIND_DATA ffd;
     HANDLE hfind = nullptr;
@@ -39,14 +36,12 @@ FileTree::FileTree()
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                     flags |= FileTreeItem::Directory;
 
+
                 size_t filename_length = _tcsnlen(ffd.cFileName, std::size(ffd.cFileName));
-
-                auto view_begin_index = string_buffer.length();
-
-                string_buffer.append(ffd.cFileName, 0, filename_length);
+                tstring filename = tstring(ffd.cFileName, filename_length);
 
                 items.push_back(FileTreeItem {
-                    .name = StringSlice(string_buffer, view_begin_index, filename_length),
+                    .name = std::move(filename),
                     .depth = 1,
                     .flags = flags,
                 });
@@ -79,7 +74,7 @@ void FileTree::expand(size_t index)
         if (items[i].depth < least_depth)
         {
             path_items.push_back(items[i].name);
-            search_path_length += items[i].name.length + strlen("\\");
+            search_path_length += items[i].name.length() + strlen("\\");
             least_depth = items[i].depth;
         }
     }
@@ -117,11 +112,10 @@ void FileTree::expand(size_t index)
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                     flags |= FileTreeItem::Directory;
 
-                size_t start = string_buffer.length();
-                size_t item_length = _tcsnlen(ffd.cFileName, std::size(ffd.cFileName));
-                string_buffer.append(ffd.cFileName, item_length);
+                size_t filename_length = _tcsnlen(ffd.cFileName, std::size(ffd.cFileName));
+                tstring name = tstring(ffd.cFileName, filename_length);
                 sub_listing_buffer.push_back(FileTreeItem {
-                    .name = StringSlice(string_buffer, start, item_length),
+                    .name = std::move(name),
                     .depth = to_expand.depth + 1,
                     .flags = flags,
                 });
@@ -144,21 +138,3 @@ void FileTree::collapse(size_t index)
     assert(index < items.size());
     items[index].flags &= ~FileTreeItem::Open;
 }
-
-StringSlice::StringSlice(const tstring& string, size_t start, size_t length)
-    : ptr(&string)
-    , start(start)
-    , length(length)
-{
-}
-
-StringSlice::operator tstring_view() const
-{
-    return tstring_view(ptr->data() + start, length);
-}
-
-tstring_view StringSlice::as_view() const
-{
-    return tstring_view(ptr->data() + start, length);
-}
-
