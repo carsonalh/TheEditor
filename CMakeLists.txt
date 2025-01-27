@@ -9,6 +9,8 @@ add_executable(TheEditor
     src/Application.cpp
     src/FileTree.hpp
     src/FileTree.cpp
+    src/FileTreeComponent.hpp
+    src/FileTreeComponent.cpp
     src/LinearMath.hpp
     src/main.cpp
     src/TheEditor.hpp

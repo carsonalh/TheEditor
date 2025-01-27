@@ -8,6 +8,8 @@ This is the first "functional" milestone of TheEditor.  It involves:
 
 Thus TheEditor, in terms of bare-bones requirements, will be complete.
 
+We will have a 'master' UI layout that receives mouse and keyboard events directly.  It also has a few components, and keeps track of which one is in focus for keyboard input.  It also stores the locations of the components.  All of these components should have full read/write access to a global state.
+
 ## Plans for v-alpha-1 and beyond
 
 ### Performance

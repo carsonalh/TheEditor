@@ -77,6 +77,11 @@ public:
     }
 };
 
+struct Size
+{
+    float width, height;
+};
+
 inline Vec2 operator*(float scalar, Vec2 v)
 {
     return v * scalar;

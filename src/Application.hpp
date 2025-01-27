@@ -1,3 +1,5 @@
+#pragma once
+
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -8,55 +10,12 @@
 
 #include "FileTree.hpp"
 #include "LinearMath.hpp"
+#include "D2DRef.hpp"
+#include "CommonState.hpp"
+#include "FileTreeComponent.hpp"
 
 namespace ed
 {
-
-template<typename T>
-class D2DRef
-{
-public:
-    D2DRef(T* p = nullptr)
-        : m_Resource(p)
-    {
-        if (p)
-        {
-            p->AddRef();
-        }
-    }
-
-    ~D2DRef()
-    {
-        if (m_Resource)
-        {
-            m_Resource->Release();
-            m_Resource = nullptr;
-        }
-    }
-
-    D2DRef& operator=(D2DRef&& other)
-    {
-        m_Resource = other.m_Resource;
-        return *this;
-    }
-
-    T* operator->() const
-    {
-        return m_Resource;
-    }
-
-    operator T*() const
-    {
-        return m_Resource;
-    }
-
-    bool empty() const
-    {
-        return m_Resource == nullptr;
-    }
-private:
-    T* m_Resource;
-};
 
 class Application
 {
@@ -94,20 +53,15 @@ private:
 
 private:
     // windowing and rendering
-    HWND m_Hwnd;
-    D2DRef<ID2D1Factory> m_Direct2DFactory;
-    D2DRef<IDWriteFactory> m_DirectWriteFactory;
-    D2DRef<ID2D1HwndRenderTarget> m_RenderTarget;
-    D2DRef<ID2D1SolidColorBrush> m_HoverBrush;
-    D2DRef<ID2D1SolidColorBrush> m_ActiveBrush;
-    D2DRef<ID2D1SolidColorBrush> m_TextBrush;
-    D2DRef<IDWriteTextFormat> m_RegularTextFormat;
-    D2DRef<IDWriteTextFormat> m_BoldTextFormat;
+    HWND hwnd;
+    CommonState common_state;
 
-    static constexpr unsigned int MouseDown = 1 << 0;
-    static constexpr unsigned int MousePressed = 1 << 1;
+    FileTreeComponent file_tree_component;
+    // static constexpr unsigned int MouseDown = 1 << 0;
+    // static constexpr unsigned int MousePressed = 1 << 1;
 
-    std::optional<Vec2> m_MousePosition;
+    std::optional<Vec2> mouse_position;
+    bool mouse_down;
 
 private:
     FileTree m_FileTree;
