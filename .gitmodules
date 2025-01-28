@@ -1,6 +1,0 @@
-[submodule "vendor/glfw"]
-	path = vendor/glfw
-	url = git@github.com:glfw/glfw.git
-[submodule "vendor/freetype"]
-	path = vendor/freetype
-	url = https://gitlab.freedesktop.org/freetype/freetype
