@@ -1,7 +1,9 @@
 #ifndef THE_EDITOR_H
 #define THE_EDITOR_H
 
-#include <d2d1.h>
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,15 +41,21 @@ void filetree_collapse(FileTree *filetree, size_t index);
 
 typedef struct
 {
-    ID2D1Factory *factory;
-    ID2D1HwndRenderTarget *render_target;
-    HWND hwnd;
-} RenderData;
+    int hot;
+    int active;
+    unsigned mouse_x;
+    unsigned mouse_y;
+    FileTree filetree;
+    unsigned filetree_scroll_y;
+    unsigned filetree_width;
+} UiData;
 
-void direct2d_init(RenderData *render_data);
+typedef void RenderData;
+
+RenderData *direct2d_init(HWND hwnd);
 void direct2d_uninit(RenderData *render_data);
-
-void direct2d_paint(RenderData *render_data);
+void direct2d_paint(RenderData *render_data, const UiData *ui_data);
+void direct2d_resize(RenderData *rd, unsigned width, unsigned height);
 
 #ifdef __cplusplus
 }

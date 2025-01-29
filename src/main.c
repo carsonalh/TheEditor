@@ -3,15 +3,17 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 #include <tchar.h>
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdbool.h>
 
-RenderData render_data;
-
 LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
+
+static RenderData *render_data;
+static UiData *ui_data;
 
 int main(void)
 {
@@ -27,16 +29,6 @@ int main(void)
     };
     RegisterClass(&wnd_class);
 
-    FileTree filetree;
-    filetree_init(&filetree);
-    filetree_expand(&filetree, 0);
-    for (unsigned i = 0; i < filetree.len; i++) {
-        const char *const name = &filetree.strbuffer[filetree.items[i].name_offset];
-        const unsigned name_len = filetree.items[i].name_len;
-        printf("%.*s\n", name_len, name);
-    }
-    filetree_uninit(&filetree);
-
     HWND hwnd = CreateWindow(
             class_name, _T("C Direct2D Window!"),
             WS_OVERLAPPEDWINDOW,
@@ -45,8 +37,15 @@ int main(void)
             NULL, NULL, hinstance, NULL);
     assert(hwnd && "hwnd must not be null");
 
-    render_data = (RenderData) { .hwnd = hwnd };
-    direct2d_init(&render_data);
+    render_data = direct2d_init(hwnd);
+
+    ui_data = calloc(1, sizeof *ui_data);
+    *ui_data = (UiData) {
+        .hot = -1,
+        .active = -1,
+        .filetree_width = 300,
+    };
+    filetree_init(&ui_data->filetree);
 
     ShowWindow(hwnd, SW_NORMAL);
 
@@ -55,6 +54,10 @@ int main(void)
         TranslateMessage(&message);
         DispatchMessage(&message);
     }
+
+    filetree_uninit(&ui_data->filetree);
+    free(ui_data);
+    direct2d_uninit(render_data);
 }
 
 LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
@@ -66,8 +69,25 @@ LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
+    case WM_SIZE:
+		{
+			RECT client;
+            GetClientRect(hwnd, &client);
+            const unsigned width = client.right - client.left;
+            const unsigned height = client.bottom - client.top;
+			direct2d_resize(render_data, width, height);
+		}
+        break;
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+        break;
+    case WM_MOUSEMOVE:
+        ui_data->mouse_x = GET_X_LPARAM(lparam);
+        ui_data->mouse_y = GET_Y_LPARAM(lparam);
+        InvalidateRect(hwnd, NULL, false);
+        break;
     case WM_PAINT:
-        direct2d_paint(&render_data);
+        direct2d_paint(render_data, ui_data);
         ValidateRect(hwnd, NULL);
         break;
     default:

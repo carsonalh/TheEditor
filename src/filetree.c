@@ -15,7 +15,7 @@ void filetree_init(FileTree *filetree)
 {
     WIN32_FIND_DATA ffd;
     HANDLE hfind = NULL;
-    const char search[] = ".\\*";
+    const TCHAR search[] = _T(".\\*");
 
     const unsigned capacity = 1024;
     const unsigned strbuffer_capacity = 2048;
@@ -30,47 +30,47 @@ void filetree_init(FileTree *filetree)
     };
 
     hfind = FindFirstFile(search, &ffd);
-    if (hfind != INVALID_HANDLE_VALUE) {
-        do {
-            if (!strncmp(ffd.cFileName, ".", sizeof ffd.cFileName)
-                || !strncmp(ffd.cFileName, "..", sizeof ffd.cFileName))
-                continue;
+    assert(hfind != INVALID_HANDLE_VALUE);
 
-            FileTreeFlags flags = 0;
+	do {
+		if (!_tcsncmp(ffd.cFileName, _T("."), sizeof ffd.cFileName / sizeof ffd.cFileName[0])
+			|| !_tcsncmp(ffd.cFileName, _T(".."), sizeof ffd.cFileName / sizeof ffd.cFileName[0]))
+			continue;
 
-            if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                flags = FILETREE_DIRECTORY;
+		FileTreeFlags flags = 0;
 
-            unsigned name_len = (unsigned)strnlen(ffd.cFileName, sizeof ffd.cFileName);
-            if (name_len + filetree->strbuffer_len > filetree->strbuffer_cap) {
-                filetree->strbuffer_cap *= 2;
-                filetree->strbuffer = realloc(filetree->strbuffer, filetree->strbuffer_cap * sizeof (char));
-                assert(filetree->strbuffer);
-            }
+		if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			flags = FILETREE_DIRECTORY;
 
-            // strings of differing char sizes, no strncpy here :(
-            for (unsigned i = 0; i < name_len; i++) {
-                filetree->strbuffer[filetree->strbuffer_len + i] = (char)ffd.cFileName[i];
-            }
+		unsigned name_len = (unsigned)_tcsnlen(ffd.cFileName, sizeof ffd.cFileName / sizeof ffd.cFileName[0]);
+		if (name_len + filetree->strbuffer_len > filetree->strbuffer_cap) {
+			filetree->strbuffer_cap *= 2;
+			filetree->strbuffer = realloc(filetree->strbuffer, filetree->strbuffer_cap * sizeof (char));
+			assert(filetree->strbuffer);
+		}
 
-            unsigned name_offset = filetree->strbuffer_len;
-            filetree->strbuffer_len += name_len;
+		// strings of differing char sizes, change to a UTF-16 to UTF-8 conversion if you want unicode file names
+		for (unsigned i = 0; i < name_len; i++) {
+			filetree->strbuffer[filetree->strbuffer_len + i] = (char)ffd.cFileName[i];
+		}
 
-            if (filetree->len + 1 > filetree->cap) {
-                filetree->cap *= 2;
-                filetree->items = realloc(filetree->items, filetree->cap * sizeof *filetree->items);
-                assert(filetree->items);
-            }
+		unsigned name_offset = filetree->strbuffer_len;
+		filetree->strbuffer_len += name_len;
 
-            filetree->items[filetree->len++] = (FileTreeItem) {
-                .depth = 0,
-                .flags = flags,
-                .name_offset = name_offset,
-                .name_len = name_len,
-            };
-        }
-        while (FindNextFile(hfind, &ffd));
-    }
+		if (filetree->len + 1 > filetree->cap) {
+			filetree->cap *= 2;
+			filetree->items = realloc(filetree->items, filetree->cap * sizeof *filetree->items);
+			assert(filetree->items);
+		}
+
+		filetree->items[filetree->len++] = (FileTreeItem) {
+			.depth = 0,
+			.flags = flags,
+			.name_offset = name_offset,
+			.name_len = name_len,
+		};
+	}
+	while (FindNextFile(hfind, &ffd));
 }
 
 void filetree_uninit(FileTree *filetree)
