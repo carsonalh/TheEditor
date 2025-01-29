@@ -1,21 +1,13 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(TheEditor)
-
-add_subdirectory(vendor/glfw)
-add_subdirectory(vendor/freetype)
-add_library(glad vendor/glad/src/gl.c)
-target_include_directories(glad PUBLIC vendor/glad/include)
+project(TheEditor LANGUAGES C CXX)
 
 add_executable(TheEditor
     src/main.c
-    src/util.c
-    src/text.c
-    src/render.c
-    src/ui.c
     src/filetree.c
-    src/theeditor.h
-    src/linmath.h)
+    src/direct2d.cpp
+    src/the_editor.h
+)
 
 find_package(Python REQUIRED)
 execute_process(
@@ -47,5 +39,4 @@ target_compile_options(TheEditor PRIVATE
     $<$<CONFIG:Debug>:/Zi /W4 /fsanitize=address /external:anglebrackets /external:W0 /wd4100>
     $<$<CONFIG:Release>:/W4 /wd4100>
 )
-target_link_libraries(TheEditor PRIVATE glfw user32 freetype glad)
-target_include_directories(TheEditor PRIVATE vendor/glfw/include)
+target_link_libraries(TheEditor PRIVATE user32 d2d1)
