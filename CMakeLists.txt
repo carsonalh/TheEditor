@@ -5,10 +5,10 @@ project(TheEditor LANGUAGES C CXX)
 add_executable(TheEditor
     src/main.c
     src/filetree.c
-	
+    src/ui.c
     src/direct2d.cpp
     src/the_editor.h
- "src/clay.h")
+)
 
 find_package(Python REQUIRED)
 execute_process(

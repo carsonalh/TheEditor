@@ -10,7 +10,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
+static LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
+static void compute_ui_component_tree(void);
 
 static RenderData *render_data;
 static UiData *ui_data;
@@ -40,12 +41,14 @@ int main(void)
     render_data = direct2d_init(hwnd);
 
     ui_data = calloc(1, sizeof *ui_data);
+    const size_t components_cap = 256;
+    UiComponent *components = malloc(components_cap * sizeof *components);
     *ui_data = (UiData) {
         .hot = -1,
         .active = -1,
-        .filetree_width = 300,
+        .components = components,
+        .components_cap = components_cap,
     };
-    filetree_init(&ui_data->filetree);
 
     ShowWindow(hwnd, SW_NORMAL);
 
@@ -55,12 +58,11 @@ int main(void)
         DispatchMessage(&message);
     }
 
-    filetree_uninit(&ui_data->filetree);
     free(ui_data);
     direct2d_uninit(render_data);
 }
 
-LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+static LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
     switch (message) {
     case WM_CLOSE:
@@ -87,6 +89,7 @@ LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
         InvalidateRect(hwnd, NULL, false);
         break;
     case WM_PAINT:
+        compute_ui_component_tree();
         direct2d_paint(render_data, ui_data);
         ValidateRect(hwnd, NULL);
         break;
@@ -95,4 +98,25 @@ LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
     }
 
     return 0;
+}
+
+static void compute_ui_component_tree(void)
+{
+    ui_begin(ui_data);
+
+    if (ui_rect(100, 50, 300, 300, 0x45a020ff)) {
+        printf("Rectangle clicked!\n");
+    }
+
+    // TODO: fix parenting behaviour
+    ui_depth_push();
+        ui_rect(200, 0, 50, 50, 0xc06060ff);
+		//ui_depth_push();
+             ui_rect(100, 100, 50, 50, 0x2020a0ff);
+        //ui_depth_pop();
+        // THIS RECT SHOULD BE PARENTED TO THE FIRST ONE (line 107), NOT THE ONE BEFORE IT (line 113)
+        //ui_rect(0, 200, 50, 50, 0xff0000ff);
+    ui_depth_pop();
+
+    ui_end();
 }

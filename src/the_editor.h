@@ -5,6 +5,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -41,14 +44,38 @@ void filetree_collapse(FileTree *filetree, size_t index);
 
 typedef struct
 {
+    unsigned depth;
+    // RGBA encoded; but we ignore the alpha channel
+    uint32_t color;
+    uint64_t width;
+    uint64_t height;
+    uint64_t offset_x;
+    uint64_t offset_y;
+    // TODO some options to specify text
+} UiComponent;
+
+typedef struct
+{
     int hot;
     int active;
+    bool mouse_down;
     unsigned mouse_x;
     unsigned mouse_y;
-    FileTree filetree;
-    unsigned filetree_scroll_y;
-    unsigned filetree_width;
+    UiComponent *components;
+    size_t components_len;
+    size_t components_cap;
 } UiData;
+
+void ui_begin(UiData *ui);
+void ui_end(void);
+/* Increments the depth; use this before specifying the children of an element
+ * (i.e. the last element which was called).
+ */
+void ui_depth_push(void);
+/* Used to end the children of the last element.  See `ui_depth_push`.
+ */
+void ui_depth_pop(void);
+bool ui_rect(int x, int y, int width, int height, uint32_t color);
 
 typedef void RenderData;
 

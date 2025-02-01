@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <limits.h>
+#include <time.h>
 
 typedef struct
 {
@@ -22,8 +24,8 @@ typedef struct
     IDWriteTextFormat *text_format_regular;
     IDWriteTextFormat *text_format_bold;
     HWND hwnd;
-    TCHAR *tchar_buffer;
-    size_t tchar_buffer_cap;
+    int (*offset_stack)[2];
+    int offset_stack_cap;
 } RenderDataImpl;
 
 RenderData *direct2d_init(HWND hwnd)
@@ -31,6 +33,11 @@ RenderData *direct2d_init(HWND hwnd)
     RenderDataImpl *render_data = (RenderDataImpl*)calloc(1, sizeof *render_data);
 
     render_data->hwnd = hwnd;
+
+    render_data->offset_stack_cap = 32;
+    render_data->offset_stack = (int(*)[2])calloc(
+            render_data->offset_stack_cap,
+            sizeof *render_data->offset_stack);
 
     HRESULT hr;
     hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &render_data->factory);
@@ -99,40 +106,45 @@ void direct2d_paint(RenderData *rd, const UiData *ui_data)
     render_data->render_target->BeginDraw();
     render_data->render_target->Clear(D2D1::ColorF(D2D1::ColorF::Black));
 
-    const float height = 30;
-    const float text_height = 20;
-    const float text_offset = height - text_height / 2;
-    const float padding_left = 8;
-    for (unsigned i = 0; i < ui_data->filetree.len; i++) {
-        while (ui_data->filetree.items[i].name_len + 1 > render_data->tchar_buffer_cap) {
-            size_t cap = render_data->tchar_buffer_cap;
-            cap = cap ? cap * 2 : 1024;
-            render_data->tchar_buffer = (TCHAR*)realloc((void*)render_data->tchar_buffer, cap * sizeof (TCHAR));
-            render_data->tchar_buffer_cap = cap;
+	render_data->offset_stack[0][0] = 0;
+	render_data->offset_stack[0][1] = 0;
+    unsigned last_depth = 0;
+    int stack_len = 1;
+
+    for (int i = 0; i < ui_data->components_len; i++) {
+        unsigned depth = ui_data->components[i].depth;
+        if (last_depth >= depth) {
+            stack_len -= last_depth - depth + 1;
+            assert(stack_len >= 1 && "cannot pop the root transform off the stack");
+        } else {
+            assert(stack_len < render_data->offset_stack_cap && "stack overflow");
+            assert(last_depth == depth - 1 && "child of child with no component in between");
         }
+        last_depth = depth;
 
-		unsigned offset = ui_data->filetree.items[i].name_offset;
-        unsigned len = ui_data->filetree.items[i].name_len;
-        for (unsigned i = 0; i < len; i++) {
-            render_data->tchar_buffer[i] = (TCHAR)ui_data->filetree.strbuffer[offset + i];
-        }
-        render_data->tchar_buffer[len] = 0;
+        int offset_x = render_data->offset_stack[stack_len - 1][0];
+        int offset_y = render_data->offset_stack[stack_len - 1][1];
 
-		D2D1_RECT_F item_rect = { 0, height * i, ui_data->filetree_width, height * (i + 1) };
-        D2D1_RECT_F text_rect = item_rect;
-        text_rect.left = padding_left;
+		render_data->offset_stack[stack_len][0] = offset_x + ui_data->components[i].offset_x;
+		render_data->offset_stack[stack_len][1] = offset_y + ui_data->components[i].offset_y;
+		stack_len++;
 
-        float x, y;
-        x = (float)ui_data->mouse_x;
-        y = (float)ui_data->mouse_y;
-        if (item_rect.left < x && x < item_rect.right && item_rect.top < y && y < item_rect.bottom) {
-			render_data->render_target->FillRectangle(item_rect, (ID2D1Brush*)render_data->brush_highlight);
-        }
+        uint32_t color = ui_data->components[i].color;
+        ID2D1SolidColorBrush *brush;
+        HRESULT hr = render_data->render_target->CreateSolidColorBrush(D2D1::ColorF(
+            (float)((color >> 24) & 0xFF) / 255.0f,
+            (float)((color >> 16) & 0xFF) / 255.0f,
+            (float)((color >> 8) & 0xFF) / 255.0f,
+            (float)((color >> 0) & 0xFF) / 255.0f
+        ), &brush);
+        assert(!hr);
 
-        render_data->render_target->DrawTextW(
-                render_data->tchar_buffer, len,
-                render_data->text_format_regular, text_rect,
-				render_data->brush_text);
+        render_data->render_target->FillRectangle(D2D1_RECT_F {
+            (float)(offset_x + ui_data->components[i].offset_x),
+            (float)(offset_y + ui_data->components[i].offset_y),
+            (float)(offset_x + ui_data->components[i].offset_x + ui_data->components[i].width),
+            (float)(offset_y + ui_data->components[i].offset_y + ui_data->components[i].height),
+        }, (ID2D1Brush*)brush);
     }
 
     render_data->render_target->EndDraw();
