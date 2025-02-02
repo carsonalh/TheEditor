@@ -15,10 +15,7 @@ void ui_begin(UiData *ui_data)
 void ui_end(void)
 {
     // TODO compute the rectangle sizes which need to be drawn???? or not???
-
-#ifndef NDEBUG
     ui = NULL;
-#endif
 }
 
 void ui_depth_push(void)
@@ -34,21 +31,57 @@ void ui_depth_pop(void)
     assert(depth >= 1 && "cannot render below depth 1 (0 is a reserved root element)");
 }
 
-void ui_rect(int x, int y, int width, int height, uint32_t color)
+#define RESIZE_COMPONENTS_IF_FULL() do { \
+    if (ui->components_len >= ui->components_cap) { \
+        ui->components_cap *= 2; \
+        ui->components = realloc(ui->components, ui->components_cap); \
+    } } while (0)
+
+void ui_box_container(const BoxContainer *box_container)
 {
-    if (ui->components_len >= ui->components_cap) {
-        ui->components_cap *= 2;
-        ui->components = realloc(ui->components, ui->components_cap);
-    }
+    RESIZE_COMPONENTS_IF_FULL();
+
+    const int id = ui->components_len;
+    ui->components[id] = (ComponentNode) {
+        .depth = depth,
+        .component = {
+            .type = COMPONENT_TYPE_BOX_CONTAINER,
+            .box_container = *box_container,
+        },
+    };
+    ui->components_len++;
+
+    return false;
+}
+
+void ui_linear_container(const LinearContainer *linear_container)
+{
+    RESIZE_COMPONENTS_IF_FULL();
+
+    const int id = ui->components_len;
+    ui->components[id] = (ComponentNode) {
+        .depth = depth,
+        .component = {
+            .type = COMPONENT_TYPE_LINEAR_CONTAINER,
+            .linear_container = *linear_container,
+        },
+    };
+    ui->components_len++;
+
+    return false;
+}
+
+void ui_rect(const Rect *rect)
+{
+    RESIZE_COMPONENTS_IF_FULL();
 
     const int id = (int)ui->components_len;
-    ui->components[ui->components_len] = (UiComponent) {
-        .width = width,
-        .height = height,
-        .offset_x = x,
-        .offset_y = y,
+    ui->components[id] = (ComponentNode) {
         .depth = depth,
-        .color = color,
+        .component = {
+            .type = COMPONENT_TYPE_RECT,
+            .rect = *rect,
+        }
     };
     ui->components_len++;
 

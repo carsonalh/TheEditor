@@ -42,7 +42,7 @@ int main(void)
 
     ui_data = calloc(1, sizeof *ui_data);
     const size_t components_cap = 256;
-    UiComponent *components = malloc(components_cap * sizeof *components);
+    ComponentNode *components = malloc(components_cap * sizeof *components);
     *ui_data = (UiData) {
         .hot = -1,
         .active = -1,
@@ -104,18 +104,50 @@ static void compute_ui_component_tree(void)
 {
     ui_begin(ui_data);
 
-    if (ui_rect(100, 50, 300, 300, 0x45a020ff)) {
-        printf("Rectangle clicked!\n");
-    }
+    //ui_box_container(&(BoxContainer) {
+    //    .length_x = LENGTH_RELATIVE(1.0f),
+    //    .length_y = LENGTH_RELATIVE(1.0f),
+    //    .color = 0xff0000ff,
+    //});
+    //ui_depth_push();
+    //    ui_rect(&(Rect) {
+    //        .length_x = LENGTH_FIXED(100),
+    //        .length_y = LENGTH_FIXED(100),
+    //        .offset_x = OFFSET_RELATIVE(0.5f),
+    //        .offset_y = OFFSET_RELATIVE(0.5f),
+    //        .color = 0x0000ffff,
+    //    });
+    //ui_depth_pop();
 
-    // TODO: fix parenting behaviour
+    ui_box_container(&(BoxContainer) {
+        .length_x = LENGTH_RELATIVE(1.0f),
+        .length_y = LENGTH_RELATIVE(1.0f),
+        .color = 0x404040ff,
+    });
+    ui_linear_container(&(LinearContainer) {
+        .direction = LINEAR_CONTAINER_LEFT_TO_RIGHT,
+            .item_length_px = 50,
+            .length_x = LENGTH_RELATIVE(1.0f),
+            .length_y = LENGTH_RELATIVE(0.5f),
+            .offset_x = OFFSET_FROM_BEGIN(0),
+            .offset_y = OFFSET_FROM_BEGIN(0),
+    });
     ui_depth_push();
-        ui_rect(200, 0, 50, 50, 0xc06060ff);
-		//ui_depth_push();
-             ui_rect(100, 100, 50, 50, 0x2020a0ff);
-        //ui_depth_pop();
-        // THIS RECT SHOULD BE PARENTED TO THE FIRST ONE (line 107), NOT THE ONE BEFORE IT (line 113)
-        //ui_rect(0, 200, 50, 50, 0xff0000ff);
+		ui_rect(&(Rect) {
+            .length_x = LENGTH_RELATIVE(1.0f),
+            .length_y = LENGTH_RELATIVE(1.0f),
+			.color = 0xff0000ff,
+		});
+		ui_rect(&(Rect) {
+            .length_x = LENGTH_RELATIVE(1.0f),
+            .length_y = LENGTH_RELATIVE(1.0f),
+			.color = 0x00ff00ff,
+		});
+		ui_rect(&(Rect) {
+            .length_x = LENGTH_RELATIVE(1.0f),
+            .length_y = LENGTH_RELATIVE(1.0f),
+			.color = 0x0000ffff,
+		});
     ui_depth_pop();
 
     ui_end();

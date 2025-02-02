@@ -42,17 +42,91 @@ void filetree_uninit(FileTree *filetree);
 void filetree_expand(FileTree *filetree, size_t index);
 void filetree_collapse(FileTree *filetree, size_t index);
 
+enum
+{
+    LENGTH_TYPE_FIXED,
+    LENGTH_TYPE_RELATIVE,
+} LengthType;
+
+#define LENGTH_FIXED(px) ((uint64_t)(((uint64_t)LENGTH_TYPE_FIXED << 32) | (uint32_t)(px)))
+#define LENGTH_RELATIVE(scale) ((uint64_t)(((uint64_t)LENGTH_TYPE_RELATIVE << 32) | *(uint32_t*)&(float){(scale)}))
+
+enum
+{
+    // how many pixels from the beginning
+    OFFSET_TYPE_FIXED_BEGIN = 0,
+    // how many pixels from the end
+    OFFSET_TYPE_FIXED_END,
+    // parameter is a float; 0 is all the way at the beginning and 1 at the end
+    OFFSET_TYPE_RELATIVE,
+} OffsetType;
+
+#define OFFSET_FROM_BEGIN(px) ((uint64_t)((uint64_t)OFFSET_TYPE_FIXED_BEGIN << 32) | (uint32_t)(px))
+#define OFFSET_FROM_END(px) ((uint64_t)((uint64_t)OFFSET_TYPE_FIXED_END << 32) | (uint32_t)(px))
+#define OFFSET_BEGIN() OFFSET_FROM_BEGIN(0)
+#define OFFSET_END() OFFSET_FROM_END(0)
+#define OFFSET_RELATIVE(scale) ((uint64_t)((uint64_t)OFFSET_TYPE_RELATIVE << 32) | *(uint32_t*)&(float){(scale)})
+#define OFFSET_CENTER() OFFSET_RELATIVE(0.5f)
+
+// All container/element structs must begin with these values, so we can position them
 typedef struct
 {
-    unsigned depth;
-    // RGBA encoded; but we ignore the alpha channel
+    uint64_t offset_x, offset_y;
+    uint64_t length_x, length_y;
+} RectSpec;
+
+typedef struct
+{
+    uint64_t offset_x, offset_y;
+    uint64_t length_x, length_y;
     uint32_t color;
-    uint64_t width;
-    uint64_t height;
-    uint64_t offset_x;
-    uint64_t offset_y;
-    // TODO some options to specify text
-} UiComponent;
+} BoxContainer;
+
+typedef enum
+{
+    LINEAR_CONTAINER_LEFT_TO_RIGHT,
+    LINEAR_CONTAINER_TOP_TO_BOTTOM,
+    LINEAR_CONTAINER_RIGHT_TO_LEFT,
+    LINEAR_CONTAINER_BOTTOM_TO_TOP,
+} LinearContainerDirection;
+
+typedef struct
+{
+    uint64_t offset_x, offset_y;
+    uint64_t length_x, length_y;
+    unsigned item_length_px;
+    LinearContainerDirection direction;
+} LinearContainer;
+
+typedef struct
+{
+    uint64_t offset_x, offset_y;
+    uint64_t length_x, length_y;
+    uint32_t color;
+} Rect;
+
+typedef enum
+{
+    COMPONENT_TYPE_RECT,
+    COMPONENT_TYPE_BOX_CONTAINER,
+    COMPONENT_TYPE_LINEAR_CONTAINER,
+} ComponentType;
+
+typedef struct
+{
+    ComponentType type;
+    union {
+        Rect rect;
+        BoxContainer box_container;
+        LinearContainer linear_container;
+    };
+} Component;
+
+typedef struct
+{
+    int depth;
+    Component component;
+} ComponentNode;
 
 typedef struct
 {
@@ -61,7 +135,7 @@ typedef struct
     bool mouse_down;
     unsigned mouse_x;
     unsigned mouse_y;
-    UiComponent *components;
+    ComponentNode *components;
     size_t components_len;
     size_t components_cap;
 } UiData;
@@ -75,7 +149,9 @@ void ui_depth_push(void);
 /* Used to end the children of the last element.  See `ui_depth_push`.
  */
 void ui_depth_pop(void);
-bool ui_rect(int x, int y, int width, int height, uint32_t color);
+void ui_linear_container(const LinearContainer *);
+void ui_box_container(const BoxContainer *);
+bool ui_rect(const Rect *);
 
 typedef void RenderData;
 
