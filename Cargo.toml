@@ -3,12 +3,16 @@ name = "TheEditor"
 version = "0.1.0"
 edition = "2021"
 
+[dependencies]
+lipsum = "0.9"
+
 [dependencies.windows]
 version = "0.59"
 features = [
     "Win32_System_LibraryLoader",
     "Win32_UI_Animation",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_Graphics_Direct2D",
     "Win32_Graphics_Direct2D_Common",
     "Win32_Graphics_Dxgi_Common",
