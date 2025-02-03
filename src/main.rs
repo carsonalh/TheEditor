@@ -35,6 +35,8 @@ impl AsUtf16 for String {
     }
 }
 
+const TIMER_CURSOR_BLINK: usize = 1;
+
 struct Window {
     hwnd: HWND,
     direct_2d_factory: ID2D1Factory,
@@ -49,6 +51,7 @@ struct Window {
     height: u32,
     contents: String,
     cursor_pos: u32,
+    cursor_visible: bool,
     contents_utf16: Vec<u16>,
     mouse_position: Option<(u32, u32)>,
 }
@@ -82,6 +85,8 @@ impl Window {
             Some(h_instance),
             Some(window_ptr as *const core::ffi::c_void),
         )?;
+
+        _ = SetTimer(Some(hwnd), TIMER_CURSOR_BLINK, 500, None);
 
         let direct_2d_factory: ID2D1Factory =
             D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)?;
@@ -171,6 +176,7 @@ impl Window {
                 contents: contents_str,
                 contents_utf16,
                 cursor_pos: 0,
+                cursor_visible: true,
                 text_format_regular,
                 text_format_bold,
                 text_layout,
@@ -209,28 +215,31 @@ impl Window {
             &self.text_brush,
             Default::default(),
         );
-        let mut x = 0f32;
-        let mut y = 0f32;
-        let mut metrics = DWRITE_HIT_TEST_METRICS::default();
-        self.text_layout.HitTestTextPosition(
-            self.cursor_pos,
-            false,
-            &mut x,
-            &mut y,
-            &mut metrics,
-        )?;
-        const EPSILON: f32 = 0.000001f32;
-        const WIDTH: f32 = 3f32;
-        if x.abs() < EPSILON {
-            x += WIDTH / 2f32;
-        }
 
-        self.render_target.FillRectangle(&D2D_RECT_F {
-            left: x - WIDTH / 2f32,
-            right: x + WIDTH / 2f32,
-            top: y,
-            bottom: y + metrics.height,
-        }, &self.text_brush);
+        if self.cursor_visible {
+            let mut x = 0f32;
+            let mut y = 0f32;
+            let mut metrics = DWRITE_HIT_TEST_METRICS::default();
+            self.text_layout.HitTestTextPosition(
+                self.cursor_pos,
+                false,
+                &mut x,
+                &mut y,
+                &mut metrics,
+            )?;
+            const EPSILON: f32 = 0.000001f32;
+            const WIDTH: f32 = 3f32;
+            if x.abs() < EPSILON {
+                x += WIDTH / 2f32;
+            }
+
+            self.render_target.FillRectangle(&D2D_RECT_F {
+                left: x - WIDTH / 2f32,
+                right: x + WIDTH / 2f32,
+                top: y,
+                bottom: y + metrics.height,
+            }, &self.text_brush);
+        }
 
         self.render_target.EndDraw(None, None)?;
         Ok(())
@@ -283,6 +292,12 @@ impl Window {
             }
         };
 
+        let reset_timer = || -> Result<()> {
+            KillTimer(Some(hwnd), TIMER_CURSOR_BLINK)?;
+            _ = SetTimer(Some(hwnd), TIMER_CURSOR_BLINK, 500, None);
+            Ok(())
+        };
+
         match message {
             WM_CLOSE => LRESULT(match DestroyWindow(hwnd) {
                 Ok(_) => 0,
@@ -316,11 +331,23 @@ impl Window {
                     VK_RIGHT => window.cursor_pos += 1,
                     _ => handled = false,
                 };
+
                 if handled {
                     _ = InvalidateRect(Some(hwnd), None, false);
+                    window.cursor_visible = true;
+                    LRESULT(match reset_timer() {
+                        Ok(_) => 0,
+                        Err(_) => 1,
+                    })
+                } else {
+                    LRESULT(0)
                 }
+            },
+            WM_TIMER => {
+                window.cursor_visible = !window.cursor_visible;
+                _ = InvalidateRect(Some(hwnd), None, false);
                 LRESULT(0)
-            }
+            },
             WM_QUIT | WM_DESTROY => {
                 PostQuitMessage(0);
                 LRESULT(0)
