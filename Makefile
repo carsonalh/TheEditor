@@ -4,7 +4,7 @@ CFLAGS=-g -Wall -Wpedantic -std=c99 -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN
 CXXFLAGS=-g -Wall -Wpedantic -std=c++23 -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN
 LDFLAGS=-mconsole
 OUTDIR=build
-CSOURCES=$(patsubst %,src/%,main.c buffer.c)
+CSOURCES=$(patsubst %,src/%,main.c)
 CXXSOURCES=$(patsubst %,src/%,direct2d.cpp)
 SOURCES=$(CSOURCES) $(CXXSOURCES)
 OBJECTS=$(patsubst src/%.c,$(OUTDIR)/%.o,$(CSOURCES)) $(patsubst src/%.cpp,$(OUTDIR)/%.o,$(CXXSOURCES))
