@@ -1,8 +1,8 @@
 #include "direct2d.h"
+#include "neovim.h"
 
 #include <windows.h>
 #include <windowsx.h>
-#include <tchar.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -17,7 +17,11 @@ int main()
     HINSTANCE hinstance = GetModuleHandleW(NULL);
     assert(hinstance && "hinstance must be retrieved as not null");
 
-    const TCHAR *class_name = L"WindowClass";
+    DWORD neovim_thread_id;
+    HANDLE neovim_thread = CreateThread(NULL, 0, neovim_thread_main, NULL, 0, &neovim_thread_id);
+    assert(neovim_thread);
+
+    const wchar_t *class_name = L"WindowClass";
     WNDCLASSW wnd_class = {
         .lpszClassName = class_name,
         .lpfnWndProc = window_proc,
