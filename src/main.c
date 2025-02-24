@@ -1,6 +1,7 @@
 #include "direct2d.h"
 #include "neovim.h"
 
+#include <synchapi.h>
 #include <windows.h>
 #include <windowsx.h>
 
@@ -12,7 +13,7 @@ static LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
 
 static RenderData *render_data;
 
-int main()
+int main(void)
 {
     HINSTANCE hinstance = GetModuleHandleW(NULL);
     assert(hinstance && "hinstance must be retrieved as not null");
@@ -49,6 +50,14 @@ int main()
     }
 
     direct2d_uninit(render_data);
+
+    DWORD result;
+    result = WaitForSingleObject(neovim_thread, INFINITE);
+    assert(!result);
+
+    BOOL ok;
+    ok = CloseHandle(neovim_thread);
+    assert(ok && "destroy neovim thread");
 }
 
 static LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
@@ -61,13 +70,13 @@ static LRESULT window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
         PostQuitMessage(0);
         break;
     case WM_SIZE:
-		{
-			RECT client;
+        {
+            RECT client;
             GetClientRect(hwnd, &client);
             const unsigned width = client.right - client.left;
             const unsigned height = client.bottom - client.top;
-			direct2d_resize(render_data, width, height);
-		}
+            direct2d_resize(render_data, width, height);
+        }
         break;
     case WM_KEYDOWN:
         {
